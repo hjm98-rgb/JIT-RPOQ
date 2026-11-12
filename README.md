@@ -52,6 +52,12 @@ JIT 的本质：应用以「被调试」状态启动并挂上 debugserver，`get
 
 下载后用你自己的证书（全能签 / 小白签 / 个人证书）签名安装即可。
 
+## 许可证
+
+本项目使用 **MIT License**，见 [`LICENSE`](LICENSE)。第三方组件许可见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+
+欢迎 Issue / PR：fork 后改代码推 `main`，GitHub Actions 会自动出未签名 IPA。
+
 ## 目录
 
 ```
