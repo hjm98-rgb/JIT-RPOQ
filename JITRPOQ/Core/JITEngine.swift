@@ -341,6 +341,38 @@ final class JITEngine {
         return false
     }
 
+    // MARK: - 应用图标
+
+    /// 用 SpringBoard 服务逐个拉取应用图标（PNG）。
+    func fetchIcons(bundleIDs: [String],
+                    onIcon: @escaping (String, Data) -> Void,
+                    log: ((String) -> Void)? = nil) throws {
+        let tunnel = try createTunnelAuto(log: log)
+        defer { tunnel.close() }
+
+        var client: OpaquePointer?
+        let connectError = springboard_services_connect_rsd(tunnel.adapter, tunnel.handshake, &client)
+        if let connectError { throw consume(connectError, fallback: "图标服务连接失败") }
+        guard let client else { throw JITEngineError.message("图标服务句柄为空") }
+        defer { springboard_services_free(client) }
+
+        for bundleID in bundleIDs {
+            var raw: UnsafeMutableRawPointer?
+            var length = 0
+            let error = bundleID.withCString { bundle in
+                springboard_services_get_icon(client, bundle, &raw, &length)
+            }
+            if let error {
+                idevice_error_free(error)
+                continue
+            }
+            guard let raw, length > 0 else { continue }
+            let data = Data(bytes: raw, count: length)
+            idevice_data_free(raw.assumingMemoryBound(to: UInt8.self), UInt(length))
+            onIcon(bundleID, data)
+        }
+    }
+
     // MARK: - 开 JIT
 
     /// 直接开 JIT：带调试启动 → 附加 debugserver → 分离。

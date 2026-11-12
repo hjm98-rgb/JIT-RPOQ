@@ -117,6 +117,29 @@ enum Theme {
     static let red = Color(red: 1.0, green: 0.42, blue: 0.42)
 }
 
+struct PackageIcon: View {
+    let image: UIImage?
+    let name: String
+    var size: CGFloat = 42
+
+    var body: some View {
+        if let image {
+            Image(uiImage: image)
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fill)
+                .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: size * 0.24, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                        .stroke(Theme.stroke, lineWidth: 1)
+                )
+        } else {
+            AppIconTile(name: name, size: size)
+        }
+    }
+}
+
 struct AppIconTile: View {
     let name: String
     var size: CGFloat = 42

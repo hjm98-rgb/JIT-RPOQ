@@ -19,6 +19,7 @@ struct HomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
+                    vpnBanner
                     hero
                     pairingCard
                     vpnCard
@@ -31,6 +32,10 @@ struct HomeView: View {
             }
             .background(Theme.background.ignoresSafeArea())
             .navigationTitle("JIT RPOQ")
+            .onAppear {
+                model.probeVPN()
+                model.loadIconsIfNeeded()
+            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -105,6 +110,40 @@ struct HomeView: View {
         guard let url = pendingURL else { return }
         model.importPairing(from: url, kind: kind)
         pendingURL = nil
+    }
+
+    private var vpnBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: model.vpnConnected ? "checkmark.shield.fill" : "xmark.shield.fill")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(model.vpnConnected ? Theme.green : Theme.red)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.vpnConnected ? "VPN 已开启" : "VPN 未开启")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text(model.vpnConnected
+                     ? "LocalDevVPN 回环已连接，可以开 JIT"
+                     : "请打开 LocalDevVPN 并连接，否则无法连接设备")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            Spacer()
+            Button {
+                model.probeVPN()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(14)
+        .background((model.vpnConnected ? Theme.green : Theme.red).opacity(0.10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke((model.vpnConnected ? Theme.green : Theme.red).opacity(0.35), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var hero: some View {
@@ -236,7 +275,7 @@ struct HomeView: View {
             }
             if let bundle = model.lastBundleID, let app = model.app(named: bundle) {
                 HStack(spacing: 10) {
-                    AppIconTile(name: app.name)
+                    PackageIcon(image: model.icon(for: app.bundleID), name: app.name)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(app.name)
                             .font(.system(size: 14, weight: .semibold))

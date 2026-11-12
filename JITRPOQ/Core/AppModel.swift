@@ -6,6 +6,7 @@
 import Foundation
 import Combine
 import SwiftUI
+import UIKit
 
 struct LogEntry: Identifiable {
     let id = UUID()
@@ -30,6 +31,7 @@ final class AppModel: ObservableObject {
     @Published var vpnPort: UInt16?
     @Published var vpnMessage = "未检测"
     @Published var apps: [InstalledApp] = []
+    @Published var icons: [String: Data] = [:]
     @Published var isLoadingApps = false
     @Published var logs: [LogEntry] = []
     @Published var busyBundle: String?
@@ -50,6 +52,10 @@ final class AppModel: ObservableObject {
     }
 
     @Published var sessionBundle: String?
+    private var vpnTimer: Timer?
+    private var vpnProbing = false
+    private var iconLoading = false
+    private var didAutoRefresh = false
     var activeSession: JITSession?
     private var pendingAutoBundle: String?
 
@@ -61,8 +67,20 @@ final class AppModel: ObservableObject {
         JITEngine.shared.setLogSink { [weak self] line in
             Task { @MainActor in self?.append(line, error: false) }
         }
+        loadCachedIcons()
         refreshPairingState()
         probeVPN()
+        startVPNMonitor()
+    }
+
+    private func startVPNMonitor() {
+        vpnTimer?.invalidate()
+        vpnTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.probeVPN() }
+        }
+        if let vpnTimer {
+            RunLoop.main.add(vpnTimer, forMode: .common)
+        }
     }
 
     // MARK: - 日志
@@ -151,10 +169,85 @@ final class AppModel: ObservableObject {
     // MARK: - VPN
 
     func probeVPN() {
-        let probe = JITEngine.shared.probeLoopback()
-        vpnConnected = probe.ok
-        vpnPort = probe.port
-        vpnMessage = probe.message
+        guard !vpnProbing else { return }
+        vpnProbing = true
+        Task.detached(priority: .utility) {
+            let probe = JITEngine.shared.probeLoopback()
+            await MainActor.run {
+                self.vpnConnected = probe.ok
+                self.vpnPort = probe.port
+                self.vpnMessage = probe.message
+                self.vpnProbing = false
+                if probe.ok {
+                    self.loadIconsIfNeeded()
+                    if self.apps.isEmpty && self.pairingExists && !self.isLoadingApps && !self.didAutoRefresh {
+                        self.didAutoRefresh = true
+                        self.refreshApps()
+                    }
+                } else {
+                    self.didAutoRefresh = false
+                }
+            }
+        }
+    }
+
+    // MARK: - 图标
+
+    private func iconCacheDirectory() -> URL {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        let dir = caches.appendingPathComponent("AppIcons", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    private func loadCachedIcons() {
+        let dir = iconCacheDirectory()
+        guard let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
+        var loaded: [String: Data] = [:]
+        for file in files where file.pathExtension == "png" {
+            if let data = try? Data(contentsOf: file) {
+                loaded[file.deletingPathExtension().lastPathComponent] = data
+            }
+        }
+        icons = loaded
+    }
+
+    func icon(for bundleID: String) -> UIImage? {
+        guard let data = icons[bundleID] else { return nil }
+        return UIImage(data: data)
+    }
+
+    func loadIconsIfNeeded(force: Bool = false) {
+        guard pairingExists, vpnConnected else { return }
+        guard !iconLoading else { return }
+        let missing = apps.filter { icons[$0.bundleID] == nil }.map(\.bundleID)
+        guard !missing.isEmpty || force else { return }
+        iconLoading = true
+        let targets = force ? apps.map(\.bundleID) : missing
+
+        Task.detached(priority: .utility) {
+            var fetched: [String: Data] = [:]
+            do {
+                try JITEngine.shared.fetchIcons(bundleIDs: targets) { bundleID, data in
+                    fetched[bundleID] = data
+                    let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+                        .appendingPathComponent("AppIcons", isDirectory: true)
+                    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                    try? data.write(to: dir.appendingPathComponent("\(bundleID).png"))
+                }
+            } catch {
+                await MainActor.run { self.append("图标加载中断：\(error.localizedDescription)", error: true) }
+            }
+            await MainActor.run {
+                for (bundleID, data) in fetched {
+                    self.icons[bundleID] = data
+                }
+                self.iconLoading = false
+                if !fetched.isEmpty {
+                    self.append("已加载 \(fetched.count) 个应用图标")
+                }
+            }
+        }
     }
 
     /// 一键自检：配对文件 + VPN + 隧道 + 权限。
@@ -210,6 +303,9 @@ final class AppModel: ObservableObject {
                     }
                     self.isLoadingApps = false
                     self.append("读取到 \(list.count) 个应用，其中 \(list.filter { $0.isJITCapable }.count) 个可开 JIT")
+                }
+                await MainActor.run {
+                    self.loadIconsIfNeeded()
                 }
             } catch {
                 await MainActor.run {

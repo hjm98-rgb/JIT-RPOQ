@@ -72,6 +72,9 @@ struct AppsView: View {
                 }
             }
             .refreshable { model.refreshApps() }
+            .onAppear {
+                model.loadIconsIfNeeded()
+            }
         }
     }
 
@@ -100,7 +103,7 @@ struct AppsView: View {
             model.enable(app)
         } label: {
             HStack(spacing: 12) {
-                AppIconTile(name: app.name)
+                PackageIcon(image: model.icon(for: app.bundleID), name: app.name)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Text(app.name)
