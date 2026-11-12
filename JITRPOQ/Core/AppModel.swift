@@ -52,6 +52,9 @@ final class AppModel: ObservableObject {
     }
 
     @Published var sessionBundle: String?
+    @Published var batchRunning = false
+    @Published var batchTotal = 0
+    @Published var batchDone = 0
     private var vpnTimer: Timer?
     private var vpnProbing = false
     private var iconLoading = false
@@ -187,7 +190,7 @@ final class AppModel: ObservableObject {
 
     // MARK: - VPN
 
-    func probeVPN() {
+    func probeVPN(completion: ((Bool) -> Void)? = nil) {
         guard !vpnProbing else { return }
         vpnProbing = true
         Task.detached(priority: .utility) {
@@ -206,6 +209,7 @@ final class AppModel: ObservableObject {
                 } else {
                     self.didAutoRefresh = false
                 }
+                completion?(probe.ok)
             }
         }
     }
@@ -272,7 +276,6 @@ final class AppModel: ObservableObject {
     /// 一键自检：配对文件 + VPN + 隧道 + 权限。
     func runDiagnostics() {
         append("开始自检…")
-        probeVPN()
         guard pairingExists else {
             fail(JITEngineError.pairingMissing)
             return
@@ -280,29 +283,139 @@ final class AppModel: ObservableObject {
         do {
             _ = try JITEngine.shared.validatePairingFile()
             append("配对文件解析通过（\(pairingKind.rawValue)）")
-            guard vpnConnected else {
-                throw JITEngineError.loopbackUnreachable
-            }
-            let tunnel = try JITEngine.shared.createTunnelAuto { [weak self] line in
-                Task { @MainActor in self?.append(line) }
-            }
-            tunnel.close()
-            append("隧道连接成功，配置完整")
-            toast = "自检通过"
         } catch {
             fail(error)
+            return
+        }
+        probeVPN { ok in
+            guard ok else {
+                self.lastError = "VPN 未开启，隧道不可达"
+                self.append("自检失败：VPN 未开启", error: true)
+                return
+            }
+            Task.detached(priority: .userInitiated) {
+                do {
+                    let tunnel = try JITEngine.shared.createTunnelAuto { line in
+                        Task { @MainActor in AppModel.shared.append(line) }
+                    }
+                    tunnel.close()
+                    await MainActor.run {
+                        self.append("隧道连接成功，配置完整")
+                        self.toast = "自检通过"
+                    }
+                } catch {
+                    await MainActor.run { self.fail(error) }
+                }
+            }
+        }
+    }
+
+    // MARK: - 一键操作
+
+    /// 一键补齐配置：校验配对 → 探测 VPN → 拉应用列表 → 预载图标
+    func oneTapSetup() {
+        guard pairingExists else {
+            fail(JITEngineError.pairingMissing)
+            return
+        }
+        append("一键补齐配置：开始")
+        probeVPN { ok in
+            guard ok else {
+                self.lastError = "VPN 未开启，先把 LocalDevVPN 连上"
+                self.append("一键补齐失败：VPN 未开启", error: true)
+                return
+            }
+            self.runSelfCheck()
+            self.refreshApps(force: true)
+            self.loadIconsIfNeeded(force: true)
+            self.toast = "配置已补齐"
+        }
+    }
+
+    /// 批量开 JIT（逐个启动、逐个附加、逐个分离）
+    func enableBatch(_ apps: [InstalledApp]) {
+        let targets = apps.filter { $0.isJITCapable }
+        guard !targets.isEmpty, !batchRunning else { return }
+        guard pairingExists else {
+            fail(JITEngineError.pairingMissing)
+            return
+        }
+        batchRunning = true
+        batchTotal = targets.count
+        batchDone = 0
+        append("批量开启 JIT：共 \(targets.count) 个应用")
+
+        Task.detached(priority: .userInitiated) {
+            var okCount = 0
+            for app in targets {
+                if app.bundleID == self.sessionBundle {
+                    await MainActor.run { self.batchDone += 1 }
+                    okCount += 1
+                    continue
+                }
+                await MainActor.run {
+                    self.busyBundle = app.bundleID
+                    self.append(">>> 批量开启：\(app.name)")
+                }
+                do {
+                    try JITEngine.shared.enableJIT(bundleID: app.bundleID) { line in
+                        Task { @MainActor in AppModel.shared.append(line) }
+                    }
+                    okCount += 1
+                } catch {
+                    await MainActor.run {
+                        self.append("失败：\(app.name) — \(error.localizedDescription)", error: true)
+                    }
+                }
+                await MainActor.run {
+                    self.batchDone += 1
+                    self.busyBundle = nil
+                }
+            }
+            await MainActor.run {
+                self.batchRunning = false
+                self.busyBundle = nil
+                self.toast = "批量完成 \(okCount)/\(targets.count)"
+                self.append("批量开启结束：成功 \(okCount)/\(targets.count)")
+            }
+        }
+    }
+
+    /// 把配对文件导出到「文件」App，其他 JIT 启动器可以直接拿去导入
+    @discardableResult
+    func exportPairingForOtherLaunchers() -> URL? {
+        let source = JITEngine.shared.pairingFileURL()
+        guard FileManager.default.fileExists(atPath: source.path) else {
+            lastError = JITEngineError.pairingMissing.localizedDescription
+            return nil
+        }
+        do {
+            let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let dir = documents.appendingPathComponent("Export", isDirectory: true)
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let destination = dir.appendingPathComponent("JITRPOQ-pairing.plist")
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.copyItem(at: source, to: destination)
+            toast = "已导出到 文件 App › JIT RPOQ › Export"
+            append("配对文件已导出：\(destination.lastPathComponent)")
+            return destination
+        } catch {
+            fail(error)
+            return nil
         }
     }
 
     // MARK: - 应用
 
-    func refreshApps() {
+    func refreshApps(force: Bool = false) {
         guard pairingExists else {
             lastError = JITEngineError.pairingMissing.localizedDescription
             return
         }
         probeVPN()
-        guard vpnConnected else {
+        guard vpnConnected || force else {
             lastError = JITEngineError.loopbackUnreachable.localizedDescription
             return
         }

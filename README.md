@@ -52,6 +52,13 @@ JIT 的本质：应用以「被调试」状态启动并挂上 debugserver，`get
 
 下载后用你自己的证书（全能签 / 小白签 / 个人证书）签名安装即可。
 
+## 给其他 JIT 启动器用
+
+- **配对文件导出**：主页「导出配对文件（给其他启动器用）」会把配对文件复制到「文件」App › 我的 iPhone › JIT RPOQ › Export › `JITRPOQ-pairing.plist`，StikDebug、SideStore 等启动器可以直接导入。
+- **URL Scheme 互调**：其他启动器可以 `open jitrpoq://enable?bundle=<BundleID>` 让 JIT RPOQ 接管这次开启（`jitrpoq://launch?bundle=` 普通启动，`jitrpoq://auto` 回到自动模式）。
+- **批量开启**：应用页点「选择」勾选多个带 `get-task-allow` 的应用，底部「一键开 JIT」会逐个启动并附加。
+- **一键补齐配置**：主页一次完成配对校验 → VPN 探测 → 应用列表 → 图标预载。
+
 ## 许可证
 
 本项目使用 **MIT License**，见 [`LICENSE`](LICENSE)。第三方组件许可见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。

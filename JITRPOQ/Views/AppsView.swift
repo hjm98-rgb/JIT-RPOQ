@@ -10,6 +10,8 @@ struct AppsView: View {
     @EnvironmentObject var model: AppModel
     @State private var query = ""
     @State private var filter: Filter = .jit
+    @State private var isSelecting = false
+    @State private var selection: Set<String> = []
 
     enum Filter: String, CaseIterable {
         case jit = "可开 JIT"
@@ -62,6 +64,14 @@ struct AppsView: View {
             .navigationTitle("应用")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(isSelecting ? "取消" : "选择") {
+                        isSelecting.toggle()
+                        selection.removeAll()
+                    }
+                    .foregroundStyle(Theme.accent)
+                    .disabled(model.apps.isEmpty || model.batchRunning)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         model.refreshApps()
@@ -69,6 +79,11 @@ struct AppsView: View {
                         Image(systemName: "arrow.clockwise").foregroundStyle(Theme.accent)
                     }
                     .disabled(model.isLoadingApps || !model.pairingExists)
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                if isSelecting || model.batchRunning {
+                    selectionBar
                 }
             }
             .refreshable { model.refreshApps() }
@@ -98,11 +113,64 @@ struct AppsView: View {
         .padding(.top, 50)
     }
 
+    private var selectionBar: some View {
+        VStack(spacing: 8) {
+            if model.batchRunning {
+                ProgressView(value: Double(model.batchDone), total: Double(max(model.batchTotal, 1)))
+                    .tint(Theme.accent)
+                Text("正在开启 \(model.batchDone)/\(model.batchTotal)")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            HStack(spacing: 10) {
+                Button("全选可开 JIT") {
+                    selection = Set(filtered.filter { $0.isJITCapable }.map(\.bundleID))
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.textSecondary)
+                .disabled(model.batchRunning)
+
+                Spacer()
+
+                ActionButton(
+                    title: "一键开 JIT (\(selection.count))",
+                    systemImage: "bolt.fill",
+                    prominent: true,
+                    disabled: selection.isEmpty || model.batchRunning
+                ) {
+                    let targets = filtered.filter { selection.contains($0.bundleID) }
+                    model.enableBatch(targets)
+                    isSelecting = false
+                    selection.removeAll()
+                }
+            }
+        }
+        .padding(14)
+        .background(.ultraThinMaterial)
+        .overlay(Rectangle().fill(Theme.stroke).frame(height: 1), alignment: .top)
+    }
+
     private func row(_ app: InstalledApp) -> some View {
         Button {
-            model.enable(app)
+            if isSelecting {
+                guard app.isJITCapable else { return }
+                if selection.contains(app.bundleID) {
+                    selection.remove(app.bundleID)
+                } else {
+                    selection.insert(app.bundleID)
+                }
+            } else {
+                model.enable(app)
+            }
         } label: {
             HStack(spacing: 12) {
+                if isSelecting {
+                    Image(systemName: selection.contains(app.bundleID) ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(app.isJITCapable
+                                         ? (selection.contains(app.bundleID) ? Theme.accent : Theme.textSecondary)
+                                         : Theme.textSecondary.opacity(0.4))
+                }
                 PackageIcon(image: model.icon(for: app.bundleID), name: app.name)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {

@@ -282,6 +282,12 @@ struct HomeView: View {
                     model.runDiagnostics()
                 }
             }
+            ActionButton(title: "一键补齐配置", systemImage: "wrench.and.screwdriver.fill", prominent: true, disabled: !model.pairingExists) {
+                model.oneTapSetup()
+            }
+            ActionButton(title: "导出配对文件（给其他启动器用）", systemImage: "square.and.arrow.up", disabled: !model.pairingExists) {
+                model.exportPairingForOtherLaunchers()
+            }
         }
     }
 
