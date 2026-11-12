@@ -39,7 +39,13 @@ final class JITScriptRunner {
         }
         let prepareRegion: @convention(block) (UInt64, UInt64) -> String = { [weak self] address, size in
             guard let self else { return "" }
-            return (try? self.prepareRegion(start: address, size: size)) ?? ""
+            do {
+                try self.prepareRegion(start: address, size: size)
+                return "OK"
+            } catch {
+                self.logHandler?("内存标记失败：\(error.localizedDescription)")
+                return ""
+            }
         }
         let logFunction: @convention(block) (String) -> Void = { [weak self] line in
             self?.logHandler?(line)
@@ -144,7 +150,7 @@ final class JITScriptRunner {
         // debugserver 的地址是 8 位十六进制、按半字节填充，这里取低 8 位并前补 0
         let low8 = Array(hexDigits.suffix(8))
         for (offset, character) in low8.enumerated() {
-            buffer[index + offset] = UInt8(ascii: character)
+            buffer[index + offset] = character.asciiValue ?? 0x30
         }
     }
 

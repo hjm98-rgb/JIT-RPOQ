@@ -77,12 +77,7 @@ final class JITEngine {
     private let logLock = NSLock()
     private var logSink: ((String) -> Void)?
 
-    private init() {
-        var path = (NSTemporaryDirectory() + "rpoq-idevice.log").utf8CString
-        _ = path.withUnsafeMutableBufferPointer { buffer in
-            idevice_init_logger(IdeviceLogLevel.Info, IdeviceLogLevel.Info, buffer.baseAddress)
-        }
-    }
+    private init() {}
 
     func setLogSink(_ sink: ((String) -> Void)?) {
         logLock.lock()
@@ -382,7 +377,7 @@ final class JITEngine {
 
         _ = debug_proxy_send_ack(debugProxy)
         _ = debug_proxy_send_ack(debugProxy)
-        _ = send("QStartNoAckMode", proxy: debugProxy, log: log)
+        _ = try send("QStartNoAckMode", proxy: debugProxy, log: log)
         debug_proxy_set_ack_mode(debugProxy, 0)
 
         if let script, !script.isEmpty {

@@ -48,7 +48,7 @@ struct ScriptsView: View {
                             ActionButton(title: "用脚本开 JIT", systemImage: "play.fill", prominent: true) {
                                 model.runScriptOnLastApp()
                             }
-                            ActionButton(title: previewBundled ? "收起" : "查看") {
+                            ActionButton(title: previewBundled ? "收起" : "查看", systemImage: "eye") {
                                 previewBundled.toggle()
                             }
                         }
