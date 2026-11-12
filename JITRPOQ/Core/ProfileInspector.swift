@@ -71,9 +71,10 @@ enum ProfileInspector {
         guard status == errSecSuccess,
               let array = items as? [[String: Any]],
               let first = array.first,
-              let identity = first[kSecImportItemIdentity as String] as? SecIdentity else {
+              let identityValue = first[kSecImportItemIdentity as String] else {
             throw JITEngineError.pairingInvalid("p12 导入失败（密码错误或文件无效，状态码 \(status)）")
         }
+        let identity = identityValue as! SecIdentity
         var cert: SecCertificate?
         SecIdentityCopyCertificate(identity, &cert)
         guard let cert else {

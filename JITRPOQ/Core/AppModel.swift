@@ -332,7 +332,7 @@ final class AppModel: ObservableObject {
                 self.append("一键补齐失败：VPN 未开启", error: true)
                 return
             }
-            self.runSelfCheck()
+            self.runDiagnostics()
             self.refreshApps(force: true)
             self.loadIconsIfNeeded(force: true)
             self.toast = "配置已补齐"
@@ -350,12 +350,13 @@ final class AppModel: ObservableObject {
         batchRunning = true
         batchTotal = targets.count
         batchDone = 0
+        let activeBundle = sessionBundle
         append("批量开启 JIT：共 \(targets.count) 个应用")
 
         Task.detached(priority: .userInitiated) {
             var okCount = 0
             for app in targets {
-                if app.bundleID == self.sessionBundle {
+                if app.bundleID == activeBundle {
                     await MainActor.run { self.batchDone += 1 }
                     okCount += 1
                     continue
