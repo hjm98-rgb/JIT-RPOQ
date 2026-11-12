@@ -52,6 +52,13 @@ final class AppModel: ObservableObject {
     }
 
     @Published var sessionBundle: String?
+    @Published var profile: ProvisioningProfile?
+    @Published var profileFileName: String?
+    @Published var profileRawData: Data?
+    @Published var identitySubject: String?
+    @Published var identityCertDER: Data?
+    @Published var identityP12Data: Data?
+    @Published var identityMatchesProfile = false
     @Published var batchRunning = false
     @Published var batchTotal = 0
     @Published var batchDone = 0
@@ -404,6 +411,80 @@ final class AppModel: ObservableObject {
         } catch {
             fail(error)
             return nil
+        }
+    }
+
+    // MARK: - 签名（Apple ID 证书 / 描述文件）
+
+    func importProfile(from url: URL) {
+        do {
+            let accessing = url.startAccessingSecurityScopedResource()
+            let data = try Data(contentsOf: url)
+            if accessing { url.stopAccessingSecurityScopedResource() }
+            let parsed = try ProfileInspector.parse(data: data)
+            profile = parsed
+            profileFileName = url.lastPathComponent
+            profileRawData = data
+            identityMatchesProfile = identityCertDER.map { ProfileInspector.certificate($0, matches: parsed) } ?? false
+            let jit = parsed.isJITCapable ? "包含 get-task-allow（可开 JIT）" : "不含 get-task-allow（签出来的 App 不能开 JIT）"
+            append("描述文件已读取：\(parsed.name)，\(jit)")
+            toast = parsed.isJITCapable ? "描述文件支持 JIT" : "描述文件不含 JIT 权限"
+        } catch {
+            fail(error)
+        }
+    }
+
+    func importP12(from url: URL, password: String) {
+        do {
+            let accessing = url.startAccessingSecurityScopedResource()
+            let data = try Data(contentsOf: url)
+            if accessing { url.stopAccessingSecurityScopedResource() }
+            let result = try ProfileInspector.importP12(data: data, password: password)
+            identitySubject = result.subject
+            identityCertDER = result.certificateDER
+            identityP12Data = data
+            if let profile {
+                identityMatchesProfile = ProfileInspector.certificate(result.certificateDER, matches: profile)
+            }
+            append("证书已导入：\(result.subject)")
+            toast = "证书已导入"
+        } catch {
+            fail(error)
+        }
+    }
+
+    /// 导出描述文件 + 证书到「文件」App › JIT RPOQ › Export
+    @discardableResult
+    func exportSigningAssets() -> [URL] {
+        var written: [URL] = []
+        do {
+            let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("Export", isDirectory: true)
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+            if let raw = profileRawData {
+                let name = (profileFileName?.isEmpty == false) ? profileFileName! : "profile.mobileprovision"
+                let dest = dir.appendingPathComponent(name)
+                try? FileManager.default.removeItem(at: dest)
+                try raw.write(to: dest, options: .atomic)
+                written.append(dest)
+            }
+            if let p12 = identityP12Data {
+                let dest = dir.appendingPathComponent("AppleID-signing.p12")
+                try? FileManager.default.removeItem(at: dest)
+                try p12.write(to: dest, options: .atomic)
+                written.append(dest)
+            }
+            if written.isEmpty {
+                lastError = "还没有导入描述文件或证书"
+                return []
+            }
+            toast = "已导出 \(written.count) 个文件到 文件 App › JIT RPOQ › Export"
+            append("签名文件已导出：\(written.map(\.lastPathComponent).joined(separator: "、"))")
+            return written
+        } catch {
+            fail(error)
+            return []
         }
     }
 
