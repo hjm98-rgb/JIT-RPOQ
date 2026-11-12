@@ -497,9 +497,14 @@ final class JITSession {
         let worker = Thread { [weak self] in
             guard let self else { return }
             self.log("iOS 26 JIT 会话开始（PID \(self.pid)）")
+            guard let proxy = self.debugProxy else {
+                self.log("debugserver 句柄已释放")
+                self.close()
+                return
+            }
             do {
                 let runner = JITScriptRunner()
-                _ = try runner.run(script: script, pid: self.pid, proxy: self.debugProxy, log: self.log)
+                _ = try runner.run(script: script, pid: self.pid, proxy: proxy, log: self.log)
                 self.log("JIT 会话结束")
             } catch {
                 self.log("脚本结束：\(error.localizedDescription)")
