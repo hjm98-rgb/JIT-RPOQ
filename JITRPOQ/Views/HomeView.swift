@@ -10,8 +10,6 @@ import UniformTypeIdentifiers
 struct HomeView: View {
     @EnvironmentObject var model: AppModel
     @State private var showImporter = false
-    @State private var pendingURL: URL?
-    @State private var showKindSheet = false
     @State private var showTextImport = false
     @State private var pastedText = ""
 
@@ -48,25 +46,13 @@ struct HomeView: View {
                 }
             }
         }
-        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
-            switch result {
-            case .success(let urls):
-                pendingURL = urls.first
-                showKindSheet = true
-            case .failure(let error):
-                model.append("选择文件失败：\(error.localizedDescription)", error: true)
+        .sheet(isPresented: $showImporter) {
+            DocumentPicker { urls in
+                showImporter = false
+                guard let url = urls.first else { return }
+                model.importPairing(from: url)
             }
-        }
-        .confirmationDialog("这是哪种配对文件？", isPresented: $showKindSheet, titleVisibility: .visible) {
-            Button("经典配对文件（idevicepair / 爱思 / 电脑生成）") {
-                importPending(.classic)
-            }
-            Button("RPP 配对文件（iOS 26 + LocalDevVPN）") {
-                importPending(.rpp)
-            }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("两种文件本质都是设备配对 plist：经典模式走传统配对记录，iOS 26 的 RPP 模式必须配合 LocalDevVPN 回环隧道使用。")
+            .ignoresSafeArea()
         }
         .sheet(isPresented: $showTextImport) {
             NavigationStack {
@@ -104,12 +90,6 @@ struct HomeView: View {
                 }
             }
         }
-    }
-
-    private func importPending(_ kind: PairingKind) {
-        guard let url = pendingURL else { return }
-        model.importPairing(from: url, kind: kind)
-        pendingURL = nil
     }
 
     private var vpnBanner: some View {

@@ -114,29 +114,48 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func importPairing(from url: URL, kind: PairingKind) {
+    /// 导入配对文件。文件已由 DocumentPicker(asCopy) 复制进沙盒，直接读就行。
+    /// kind 传 nil 时自动识别：能读出证书链的算经典，读不出结构的算 RPP。
+    func importPairing(from url: URL, kind: PairingKind? = nil) {
+        append("开始导入：\(url.lastPathComponent)")
         do {
             let accessing = url.startAccessingSecurityScopedResource()
-            defer { if accessing { url.stopAccessingSecurityScopedResource() } }
             let data = try Data(contentsOf: url)
+            if accessing { url.stopAccessingSecurityScopedResource() }
+
             guard data.count > 100 else {
                 throw JITEngineError.pairingInvalid("文件内容太小，可能选错了")
             }
+
             let destination = JITEngine.shared.pairingFileURL()
             try data.write(to: destination, options: .atomic)
             _ = try JITEngine.shared.validatePairingFile(at: destination)
-            UserDefaults.standard.set(kind.rawValue, forKey: "pairingKind")
+
+            let detected = kind ?? Self.detectKind(at: destination)
+            UserDefaults.standard.set(detected.rawValue, forKey: "pairingKind")
             refreshPairingState()
-            pairingKind = kind
-            toast = "配对文件已导入：\(kind.rawValue)"
-            append("已导入配对文件 \(url.lastPathComponent)（\(kind.rawValue)）")
+            pairingKind = detected
+            toast = "配对文件已导入：\(detected.rawValue)"
+            append("已导入配对文件 \(url.lastPathComponent)（\(detected.rawValue)）")
         } catch {
             fail(error)
         }
     }
 
+    static func detectKind(at url: URL) -> PairingKind {
+        guard let data = try? Data(contentsOf: url),
+              let object = try? PropertyListSerialization.propertyList(from: data, format: nil),
+              let dict = object as? [String: Any] else {
+            return .rpp
+        }
+        if dict["HostCertificate"] != nil, dict["DeviceCertificate"] != nil {
+            return .classic
+        }
+        return .rpp
+    }
+
     /// 把剪贴板里的配对 plist 文本存成文件。
-    func importPairingFromText(_ text: String, kind: PairingKind) {
+    func importPairingFromText(_ text: String, kind: PairingKind = .classic) {
         do {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard trimmed.hasPrefix("<?xml") || trimmed.hasPrefix("<plist") || trimmed.hasPrefix("bplist") else {
