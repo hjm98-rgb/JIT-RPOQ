@@ -1,0 +1,45 @@
+name: JITRPOQ
+options:
+  bundleIdPrefix: com.rpoq
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGN_IDENTITY: ""
+    ENABLE_BITCODE: "NO"
+    ONLY_ACTIVE_ARCH: "NO"
+targets:
+  JITRPOQ:
+    type: application
+    platform: iOS
+    sources:
+      - path: JITRPOQ
+        excludes:
+          - "Info.plist"
+      - path: JITRPOQ/Resources/jit26.js
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: JITRPOQ
+        PRODUCT_BUNDLE_IDENTIFIER: com.rpoq.jitlauncher
+        INFOPLIST_FILE: JITRPOQ/Info.plist
+        SWIFT_INCLUDE_PATHS: $(SRCROOT)/idevice
+        HEADER_SEARCH_PATHS: $(SRCROOT)/idevice
+        LIBRARY_SEARCH_PATHS: $(SRCROOT)/idevice
+        OTHER_LDFLAGS: -L$(SRCROOT)/idevice -lidevice_ffi
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: "NO"
+        ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+    dependencies:
+      - sdk: Security.framework
+      - sdk: Network.framework
+      - sdk: JavaScriptCore.framework
+      - sdk: libz.tbd
+      - sdk: libc++.tbd
