@@ -219,6 +219,21 @@ struct HomeView: View {
 
     private var quickActions: some View {
         Card(title: "快捷操作", systemImage: "bolt.circle") {
+            if let active = model.sessionBundle {
+                HStack(spacing: 10) {
+                    StatusPill(text: "JIT 会话运行中", ok: true)
+                    Text(active)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(1)
+                    Spacer()
+                    Button("停止") {
+                        model.stopSession()
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.red)
+                }
+            }
             if let bundle = model.lastBundleID, let app = model.app(named: bundle) {
                 HStack(spacing: 10) {
                     AppIconTile(name: app.name)

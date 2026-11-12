@@ -344,56 +344,81 @@ final class JITEngine {
     // MARK: - 开 JIT
 
     /// 直接开 JIT：带调试启动 → 附加 debugserver → 分离。
-    /// 传入 script 时用脚本模式（iOS 26 的 JIT page 协议）。
+    /// iOS 26 需要常驻会话，走 `startSession`。
     @discardableResult
-    func enableJIT(bundleID: String, script: String? = nil, log: @escaping (String) -> Void) throws -> Int32 {
+    func enableJIT(bundleID: String, log: @escaping (String) -> Void) throws -> Int32 {
+        let session = try makeSession(bundleID: bundleID, log: log)
+        defer { session.close() }
+
+        let attach = "vAttach;\(String(UInt32(session.pid), radix: 16))"
+        let response = try send(attach, proxy: session.debugProxy!, log: log)
+        log("附加结果：\(response)")
+        _ = try send("D", proxy: session.debugProxy!, log: log)
+        log("已分离，JIT 已开放")
+        return session.pid
+    }
+
+    /// iOS 26 脚本模式：启动后立刻返回一个常驻会话，脚本在后台线程持续处理 JIT 页请求。
+    func startSession(bundleID: String, script: String, log: @escaping (String) -> Void) throws -> JITSession {
+        let session = try makeSession(bundleID: bundleID, log: log)
+        session.startScript(script: script)
+        return session
+    }
+
+    private func makeSession(bundleID: String, log: @escaping (String) -> Void) throws -> JITSession {
         let tunnel = try createTunnelAuto(hostname: "JITRPOQ", log: log)
-        defer { tunnel.close() }
 
         var remoteServer: OpaquePointer?
         let rsError = remote_server_connect_rsd(tunnel.adapter, tunnel.handshake, &remoteServer)
-        if let rsError { throw consume(rsError, fallback: "远程服务连接失败") }
-        guard let remoteServer else { throw JITEngineError.message("远程服务句柄为空") }
-        defer { remote_server_free(remoteServer) }
+        if let rsError { tunnel.close(); throw consume(rsError, fallback: "远程服务连接失败") }
+        guard let remoteServer else { tunnel.close(); throw JITEngineError.message("远程服务句柄为空") }
 
         var processControl: OpaquePointer?
         let pcError = process_control_new(remoteServer, &processControl)
-        if let pcError { throw consume(pcError, fallback: "进程控制打开失败") }
-        guard let processControl else { throw JITEngineError.message("进程控制句柄为空") }
-        defer { process_control_free(processControl) }
+        if let pcError {
+            remote_server_free(remoteServer); tunnel.close()
+            throw consume(pcError, fallback: "进程控制打开失败")
+        }
+        guard let processControl else {
+            remote_server_free(remoteServer); tunnel.close()
+            throw JITEngineError.message("进程控制句柄为空")
+        }
 
         var pid: UInt64 = 0
         let launchError = bundleID.withCString { bundle in
             process_control_launch_app(processControl, bundle, nil, 0, nil, 0, true, true, &pid)
         }
-        if let launchError { throw consume(launchError, fallback: "启动 \(bundleID) 失败") }
+        if let launchError {
+            process_control_free(processControl); remote_server_free(remoteServer); tunnel.close()
+            throw consume(launchError, fallback: "启动 \(bundleID) 失败")
+        }
         log("已带调试启动 \(bundleID)，PID \(pid)")
 
         var debugProxy: OpaquePointer?
         let dpError = debug_proxy_connect_rsd(tunnel.adapter, tunnel.handshake, &debugProxy)
-        if let dpError { throw consume(dpError, fallback: "debugserver 连接失败") }
-        guard let debugProxy else { throw JITEngineError.message("debugserver 句柄为空") }
-        defer { debug_proxy_free(debugProxy) }
-
-        _ = debug_proxy_send_ack(debugProxy)
-        _ = debug_proxy_send_ack(debugProxy)
-        _ = try send("QStartNoAckMode", proxy: debugProxy, log: log)
-        debug_proxy_set_ack_mode(debugProxy, 0)
-
-        if let script, !script.isEmpty {
-            log("使用 iOS 26 脚本模式开启 JIT")
-            let runner = JITScriptRunner()
-            let output = try runner.run(script: script, pid: Int32(pid), proxy: debugProxy, log: log)
-            if !output.isEmpty { log(output) }
-        } else {
-            let attach = "vAttach;\(String(UInt32(pid), radix: 16))"
-            let response = try send(attach, proxy: debugProxy, log: log)
-            log("附加结果：\(response)")
-            _ = try send("D", proxy: debugProxy, log: log)
-            log("已分离，JIT 已开放")
+        if let dpError {
+            process_control_free(processControl); remote_server_free(remoteServer); tunnel.close()
+            throw consume(dpError, fallback: "debugserver 连接失败")
+        }
+        guard let debugProxy else {
+            process_control_free(processControl); remote_server_free(remoteServer); tunnel.close()
+            throw JITEngineError.message("debugserver 句柄为空")
         }
 
-        return Int32(pid)
+        _ = debug_proxy_send_ack(debugProxy)
+        _ = debug_proxy_send_ack(debugProxy)
+        _ = try? send("QStartNoAckMode", proxy: debugProxy, log: log)
+        debug_proxy_set_ack_mode(debugProxy, 0)
+
+        return JITSession(
+            bundleID: bundleID,
+            pid: Int32(pid),
+            tunnel: tunnel,
+            remoteServer: remoteServer,
+            processControl: processControl,
+            debugProxy: debugProxy,
+            log: log
+        )
     }
 
     @discardableResult
@@ -438,4 +463,78 @@ final class JITEngine {
         if let error { throw consume(error, fallback: "启动应用失败") }
         log("已启动 \(bundleID)，PID \(pid)")
     }
+}
+
+/// 常驻 JIT 会话：持有隧道 / 进程控制 / debugserver，脚本在后台线程跑。
+final class JITSession {
+    let bundleID: String
+    let pid: Int32
+
+    private let tunnel: DeviceTunnel
+    private var remoteServer: OpaquePointer?
+    private var processControl: OpaquePointer?
+    private(set) var debugProxy: OpaquePointer?
+    private let log: (String) -> Void
+
+    private let lock = NSLock()
+    private var closed = false
+    private var thread: Thread?
+
+    var onFinish: (() -> Void)?
+
+    init(bundleID: String, pid: Int32, tunnel: DeviceTunnel, remoteServer: OpaquePointer,
+         processControl: OpaquePointer, debugProxy: OpaquePointer, log: @escaping (String) -> Void) {
+        self.bundleID = bundleID
+        self.pid = pid
+        self.tunnel = tunnel
+        self.remoteServer = remoteServer
+        self.processControl = processControl
+        self.debugProxy = debugProxy
+        self.log = log
+    }
+
+    func startScript(script: String) {
+        let worker = Thread { [weak self] in
+            guard let self else { return }
+            self.log("iOS 26 JIT 会话开始（PID \(self.pid)）")
+            do {
+                let runner = JITScriptRunner()
+                _ = try runner.run(script: script, pid: self.pid, proxy: self.debugProxy, log: self.log)
+                self.log("JIT 会话结束")
+            } catch {
+                self.log("脚本结束：\(error.localizedDescription)")
+            }
+            self.close()
+            self.onFinish?()
+        }
+        worker.name = "com.rpoq.jitsession"
+        worker.start()
+        thread = worker
+    }
+
+    func close() {
+        lock.lock()
+        if closed {
+            lock.unlock()
+            return
+        }
+        closed = true
+        lock.unlock()
+
+        if let debugProxy {
+            debug_proxy_free(debugProxy)
+            self.debugProxy = nil
+        }
+        if let processControl {
+            process_control_free(processControl)
+            self.processControl = nil
+        }
+        if let remoteServer {
+            remote_server_free(remoteServer)
+            self.remoteServer = nil
+        }
+        tunnel.close()
+    }
+
+    deinit { close() }
 }

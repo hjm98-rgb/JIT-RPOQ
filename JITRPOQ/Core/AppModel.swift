@@ -49,6 +49,8 @@ final class AppModel: ObservableObject {
         didSet { UserDefaults.standard.set(Array(favourites), forKey: "favourites") }
     }
 
+    @Published var sessionBundle: String?
+    var activeSession: JITSession?
     private var pendingAutoBundle: String?
 
     private init() {
@@ -234,14 +236,37 @@ final class AppModel: ObservableObject {
 
         Task.detached(priority: .userInitiated) {
             do {
-                try JITEngine.shared.enableJIT(bundleID: bundleID, script: scriptText) { line in
-                    Task { @MainActor in AppModel.shared.append(line) }
-                }
-                await MainActor.run {
-                    self.busyBundle = nil
-                    self.lastBundleID = bundleID
-                    self.toast = "\(name) 的 JIT 已开启"
-                    self.append("JIT 已开启：\(name)")
+                if let scriptText, !scriptText.isEmpty {
+                    let session = try JITEngine.shared.startSession(bundleID: bundleID, script: scriptText) { line in
+                        Task { @MainActor in AppModel.shared.append(line) }
+                    }
+                    session.onFinish = {
+                        Task { @MainActor in
+                            if self.sessionBundle == bundleID {
+                                self.sessionBundle = nil
+                                self.append("JIT 会话已结束：\(name)")
+                            }
+                        }
+                    }
+                    await MainActor.run {
+                        self.activeSession?.close()
+                        self.activeSession = session
+                        self.sessionBundle = bundleID
+                        self.busyBundle = nil
+                        self.lastBundleID = bundleID
+                        self.toast = "\(name) 的 JIT 已开启"
+                        self.append("JIT 会话运行中：\(name)")
+                    }
+                } else {
+                    try JITEngine.shared.enableJIT(bundleID: bundleID) { line in
+                        Task { @MainActor in AppModel.shared.append(line) }
+                    }
+                    await MainActor.run {
+                        self.busyBundle = nil
+                        self.lastBundleID = bundleID
+                        self.toast = "\(name) 的 JIT 已开启"
+                        self.append("JIT 已开启：\(name)")
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -270,6 +295,13 @@ final class AppModel: ObservableObject {
                 }
             }
         }
+    }
+
+    func stopSession() {
+        activeSession?.close()
+        activeSession = nil
+        sessionBundle = nil
+        toast = "JIT 会话已停止"
     }
 
     func app(named bundleID: String) -> InstalledApp? {
