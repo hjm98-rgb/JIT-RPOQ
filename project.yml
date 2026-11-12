@@ -2,7 +2,7 @@ name: JITRPOQ
 options:
   bundleIdPrefix: com.rpoq
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "17.4"
   createIntermediateGroups: true
 settings:
   base:
@@ -22,8 +22,6 @@ targets:
       - path: JITRPOQ
         excludes:
           - "Info.plist"
-      - path: JITRPOQ/Resources/jit26.js
-        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: JITRPOQ

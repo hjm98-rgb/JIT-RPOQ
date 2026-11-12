@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct AppsView: View {
     @EnvironmentObject var model: AppModel

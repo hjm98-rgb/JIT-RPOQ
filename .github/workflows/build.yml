@@ -30,7 +30,8 @@ jobs:
             -target JITRPOQ \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath build \
+            SYMROOT=$(pwd)/build \
+            OBJROOT=$(pwd)/build/obj \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
