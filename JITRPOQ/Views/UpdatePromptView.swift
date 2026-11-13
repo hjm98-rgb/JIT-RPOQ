@@ -41,7 +41,7 @@ struct UpdatePromptView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
 
-            Text("点「立即更新」会调起苹果的无线安装协议，确认后直接从安装清单下载新版本并覆盖安装，配对文件和设置都会保留。")
+            Text("点「立即更新」会调用系统的无线安装协议，确认后直接覆盖安装新版本。")
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)

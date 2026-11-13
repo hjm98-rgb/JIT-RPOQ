@@ -4,6 +4,11 @@ options:
   deploymentTarget:
     iOS: "17.4"
   createIntermediateGroups: true
+packages:
+  Sodium:
+    url: https://github.com/jedisct1/swift-sodium.git
+    from: 0.9.0
+
 settings:
   base:
     MARKETING_VERSION: "1.2.0"
@@ -42,3 +47,4 @@ targets:
       - sdk: JavaScriptCore.framework
       - sdk: libz.tbd
       - sdk: libc++.tbd
+      - package: Sodium
