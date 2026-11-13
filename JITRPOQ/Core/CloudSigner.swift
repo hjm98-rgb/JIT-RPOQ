@@ -55,11 +55,11 @@ enum CloudSigner {
         }
 
         let sodium = Sodium()
-        guard let sealed = sodium.box.seal(message: Data(value.utf8), recipientPublicKey: publicKey) else {
+        guard let sealed = sodium.box.seal(message: [UInt8](value.utf8), recipientPublicKey: [UInt8](publicKey)) else {
             throw CloudSignerError.message("libsodium 加密失败")
         }
         let payload: [String: String] = [
-            "encrypted_value": sealed.base64EncodedString(),
+            "encrypted_value": Data(sealed).base64EncodedString(),
             "key_id": keyID
         ]
 
