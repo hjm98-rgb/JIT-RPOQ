@@ -56,6 +56,10 @@
 	<false/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>JIT RPOQ 需要访问本地回环网络与设备的 RemotePairing 服务通信，才能开启 JIT。</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_remotepairing._tcp</string>

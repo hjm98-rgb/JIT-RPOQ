@@ -2,12 +2,14 @@
 //  WirelessPairing.swift
 //  JIT RPOQ
 //
-//  iOS 27 的「设备端无线配对」：本机扮演一台局域网里的电脑，
-//  通过 Bonjour 广播 _remotepairing-pairable-host._tcp，
-//  用户在「设置 › 隐私与安全性 › 开发者模式」里点「与 JIT RPOQ 配对」并输入 6 位码。
+//  iOS 27 的「设备端无线配对」：本机扮演一台局域网里的电脑。
+//  流程与 StikPair 一致：
+//    pairable_host_prepare → 自己监听 TCP → 用 NetService 广播
+//    _remotepairing-pairable-host._tcp → 设备连上来 → pairable_host_accept_fd
 //
 
 import Foundation
+import Network
 
 private final class PinBox {
     let handler: (String) -> Void
@@ -24,18 +26,18 @@ final class WirelessPairingHost: NSObject, NetServiceDelegate {
     struct Result {
         let url: URL
         let deviceName: String?
+        let deviceModel: String?
         let udid: String?
     }
 
     private var hostHandle: OpaquePointer?
     private var service: NetService?
     private var listenFD: Int32 = -1
-    private var acceptThread: Thread?
     private let lock = NSLock()
     private var stopped = false
     private var finished = false
-
     private var port: UInt16 = 0
+
     private let log: (String) -> Void
     private let onPin: (String) -> Void
     private let completion: (Swift.Result<Result, Error>) -> Void
@@ -71,22 +73,20 @@ final class WirelessPairingHost: NSObject, NetServiceDelegate {
         let serviceID = serviceIDPointer.map { String(cString: $0) } ?? name
         if let serviceIDPointer { idevice_string_free(serviceIDPointer) }
 
-        var txtData = Data()
+        var txt: [String: Data] = [:]
         if let txtPointer, txtLength > 0 {
-            txtData = Data(bytes: txtPointer, count: txtLength)
+            let data = Data(bytes: txtPointer, count: txtLength)
             idevice_data_free(txtPointer, txtLength)
+            txt = Self.parseTXT(data)
         }
         log("主机身份已生成：\(serviceID)")
 
-        // 本地 TCP 监听，端口交给系统分配
-        let descriptor = try makeListener()
-        listenFD = descriptor
-
+        listenFD = try makeListener()
         var addr = sockaddr_in()
         var length = socklen_t(MemoryLayout<sockaddr_in>.size)
         _ = withUnsafeMutablePointer(to: &addr) { pointer in
             pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                getsockname(descriptor, $0, &length)
+                getsockname(listenFD, $0, &length)
             }
         }
         port = addr.sin_port.bigEndian
@@ -97,14 +97,14 @@ final class WirelessPairingHost: NSObject, NetServiceDelegate {
         log("本地端口已监听：\(port)")
 
         let netService = NetService(
-            domain: "local.",
+            domain: "",
             type: "_remotepairing-pairable-host._tcp.",
             name: serviceID,
             port: Int32(port)
         )
         netService.delegate = self
-        if !txtData.isEmpty {
-            _ = netService.setTXTRecord(txtData)
+        if !txt.isEmpty {
+            netService.setTXTRecord(NetService.data(fromTXTRecord: txt))
         }
         netService.schedule(in: .main, forMode: .common)
         netService.publish()
@@ -116,7 +116,24 @@ final class WirelessPairingHost: NSObject, NetServiceDelegate {
         }
         worker.name = "com.rpoq.wirelesspairing"
         worker.start()
-        acceptThread = worker
+    }
+
+    private static func parseTXT(_ data: Data) -> [String: Data] {
+        guard let object = try? PropertyListSerialization.propertyList(from: data, format: nil),
+              let dict = object as? [String: Any] else {
+            return [:]
+        }
+        var result: [String: Data] = [:]
+        for (key, value) in dict {
+            if let string = value as? String {
+                result[key] = Data(string.utf8)
+            } else if let value = value as? Data {
+                result[key] = value
+            } else {
+                result[key] = Data("\(value)".utf8)
+            }
+        }
+        return result
     }
 
     private func makeListener() throws -> Int32 {
@@ -151,27 +168,18 @@ final class WirelessPairingHost: NSObject, NetServiceDelegate {
     // MARK: - 接受连接
 
     private func acceptLoop() {
-        while true {
-            lock.lock()
-            let stop = stopped
-            lock.unlock()
-            if stop { return }
-
-            var clientFD: Int32 = -1
-            var addr = sockaddr()
-            var length = socklen_t(MemoryLayout<sockaddr>.size)
-            clientFD = withUnsafeMutablePointer(to: &addr) { pointer in
-                accept(listenFD, pointer, &length)
-            }
-            if clientFD < 0 {
-                // 取消时 listenFD 被关闭，accept 会立即失败
-                return
-            }
-            log("设备已连接，开始 pair-setup")
-            performPairing(fd: clientFD)
-            Darwin.close(clientFD)
+        var addr = sockaddr()
+        var length = socklen_t(MemoryLayout<sockaddr>.size)
+        let clientFD = withUnsafeMutablePointer(to: &addr) { pointer in
+            accept(listenFD, pointer, &length)
+        }
+        guard clientFD >= 0 else {
+            log("监听已关闭")
             return
         }
+        log("设备已连接，开始 pair-setup")
+        performPairing(fd: clientFD)
+        Darwin.close(clientFD)
     }
 
     private func performPairing(fd: Int32) {
@@ -206,16 +214,27 @@ final class WirelessPairingHost: NSObject, NetServiceDelegate {
         }
 
         var deviceName: String?
+        var deviceModel: String?
         var udid: String?
         if let peer {
             let info = peer.assumingMemoryBound(to: RpPairingPeerDeviceC.self).pointee
             if let name = info.name { deviceName = String(cString: name) }
+            if let model = info.model { deviceModel = String(cString: model) }
             if let identifier = info.udid { udid = String(cString: identifier) }
             rppairing_peer_device_free(peer)
         }
 
         log("配对完成，配对文件已保存：\(destination.lastPathComponent)")
-        finish(.success(Result(url: destination, deviceName: deviceName, udid: udid)))
+        finish(.success(Result(url: destination, deviceName: deviceName, deviceModel: deviceModel, udid: udid)))
+    }
+
+    private func describe(_ error: UnsafeMutablePointer<IdeviceFfiError>?) -> String {
+        guard let error else { return "未知错误" }
+        defer { idevice_error_free(error) }
+        if let message = error.pointee.message {
+            return String(cString: message)
+        }
+        return "错误码 \(error.pointee.code)"
     }
 
     private func finish(_ result: Swift.Result<Result, Error>) {
@@ -227,15 +246,6 @@ final class WirelessPairingHost: NSObject, NetServiceDelegate {
         finished = true
         lock.unlock()
         completion(result)
-    }
-
-    private func describe(_ error: UnsafeMutablePointer<IdeviceFfiError>?) -> String {
-        guard let error else { return "未知错误" }
-        defer { idevice_error_free(error) }
-        if let message = error.pointee.message {
-            return String(cString: message)
-        }
-        return "错误码 \(error.pointee.code)"
     }
 
     // MARK: - 停止
@@ -277,5 +287,91 @@ final class WirelessPairingHost: NSObject, NetServiceDelegate {
 
     func netService(_ sender: NetService, didNotPublish errorDict: [String: NSNumber]) {
         log("Bonjour 发布失败：\(errorDict)")
+    }
+}
+
+// MARK: - 局域网权限探测
+
+/// 用一个临时 Bonjour 探测触发系统的「本地网络」授权弹窗。
+final class LocalNetworkPermission: NSObject {
+    private var browser: NWBrowser?
+    private var listener: NWListener?
+    private var continuation: CheckedContinuation<Bool, Never>?
+
+    func request(timeout: TimeInterval = 45) async -> Bool {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            let params = NWParameters.tcp
+            params.includePeerToPeer = true
+
+            let listener = try? NWListener(using: params)
+            listener?.service = NWListener.Service(name: "JITRPOQProbe", type: "_jitprobe._tcp")
+            listener?.newConnectionHandler = { $0.cancel() }
+            self.listener = listener
+
+            let browser = NWBrowser(for: .bonjour(type: "_jitprobe._tcp", domain: nil), using: params)
+            browser.browseResultsChangedHandler = { [weak self] results, _ in
+                if !results.isEmpty { self?.finish(true) }
+            }
+            self.browser = browser
+
+            listener?.start(queue: .main)
+            browser.start(queue: .main)
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
+                self?.finish(false)
+            }
+        }
+    }
+
+    private func finish(_ authorized: Bool) {
+        guard let continuation else { return }
+        self.continuation = nil
+        continuation.resume(returning: authorized)
+        browser?.cancel(); browser = nil
+        listener?.cancel(); listener = nil
+    }
+}
+
+// MARK: - 后台保活（静音音频）
+
+/// 配对时用户要离开应用去「设置」，用静音循环音频把进程保活。
+final class PairingKeepAlive {
+    static let shared = PairingKeepAlive()
+    private let engine = AVAudioEngine()
+    private let player = AVAudioPlayerNode()
+    private var running = false
+
+    func start() {
+        guard !running else { return }
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try session.setActive(true)
+
+            let format = engine.outputNode.inputFormat(forBus: 0)
+            engine.attach(player)
+            engine.connect(player, to: engine.mainMixerNode, format: format)
+
+            let frames = AVAudioFrameCount(format.sampleRate)
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else { return }
+            buffer.frameLength = frames
+
+            try engine.start()
+            player.scheduleBuffer(buffer, at: nil, options: .loops)
+            player.play()
+            running = true
+        } catch {
+            running = false
+        }
+    }
+
+    func stop() {
+        guard running else { return }
+        player.stop()
+        engine.stop()
+        engine.detach(player)
+        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+        running = false
     }
 }

@@ -10,6 +10,7 @@ import UniformTypeIdentifiers
 struct HomeView: View {
     @EnvironmentObject var model: AppModel
     @State private var showImporter = false
+    @State private var showGenerator = false
     @State private var showTextImport = false
     @State private var pastedText = ""
     @State private var showGenerator = false
@@ -198,6 +199,10 @@ struct HomeView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10))
             }
 
+            ActionButton(title: "一键生成配对文件（iOS 27）", systemImage: "wand.and.stars") {
+                showGenerator = true
+            }
+
             HStack(spacing: 10) {
                 ActionButton(title: "导入配对文件", systemImage: "square.and.arrow.down", prominent: true) {
                     showImporter = true
@@ -205,9 +210,6 @@ struct HomeView: View {
                 ActionButton(title: "粘贴文本", systemImage: "doc.on.clipboard") {
                     showTextImport = true
                 }
-            }
-            ActionButton(title: "一键生成配对文件（iOS 27）", systemImage: "wand.and.stars") {
-                showGenerator = true
             }
             if model.pairingExists {
                 ActionButton(title: "移除配对文件", systemImage: "trash") {

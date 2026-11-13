@@ -43,6 +43,7 @@ targets:
     dependencies:
       - sdk: Security.framework
       - sdk: Network.framework
+      - sdk: AVFoundation.framework
       - sdk: JavaScriptCore.framework
       - sdk: libz.tbd
       - sdk: libc++.tbd

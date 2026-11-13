@@ -172,6 +172,20 @@ final class AppModel: ObservableObject {
     }
 
     /// 把剪贴板里的配对 plist 文本存成文件。
+    /// iOS 27 本机配对完成后：配对文件已在沙盒里，直接校验 + 生效。
+    func applyGeneratedPairing() {
+        do {
+            _ = try JITEngine.shared.validatePairingFile()
+            UserDefaults.standard.set(PairingKind.rpp.rawValue, forKey: "pairingKind")
+            pairingKind = .rpp
+            refreshPairingState()
+            toast = "本机配对完成，配对文件已自动导入"
+            append("iOS 27 本机配对成功，配对文件已自动导入")
+        } catch {
+            fail(error)
+        }
+    }
+
     func importPairingFromText(_ text: String, kind: PairingKind = .classic) {
         do {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
