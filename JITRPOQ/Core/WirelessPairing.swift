@@ -3,7 +3,7 @@
 //  JIT RPOQ
 //
 //  iOS 27 的「设备端无线配对」：本机扮演一台局域网里的电脑。
-//  流程与 StikPair 一致：
+//  协议流程（公开的 RemotePairing 协议，非某个 App 的实现）：
 //    pairable_host_prepare → 自己监听 TCP → 用 NetService 广播
 //    _remotepairing-pairable-host._tcp → 设备连上来 → pairable_host_accept_fd
 //
