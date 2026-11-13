@@ -77,8 +77,8 @@ final class WirelessPairingHost: NSObject, NetServiceDelegate {
 
         var txt: [String: Data] = [:]
         if let txtPointer, txtLength > 0 {
-            let data = Data(bytes: txtPointer, count: txtLength)
-            idevice_data_free(txtPointer, Int(txtLength))
+            let data = Data(bytes: txtPointer, count: Int(txtLength))
+            idevice_data_free(txtPointer, txtLength)
             txt = Self.parseTXT(data)
         }
         log("主机身份已生成：\(serviceID)")

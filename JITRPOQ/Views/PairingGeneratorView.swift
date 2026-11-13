@@ -105,7 +105,7 @@ final class PairingGeneratorModel: ObservableObject {
 }
 
 struct PairingGeneratorView: View {
-    @ObservedObject var model: AppModel
+    @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @StateObject private var vm = PairingGeneratorModel()
 
