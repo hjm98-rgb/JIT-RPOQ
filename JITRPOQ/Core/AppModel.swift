@@ -15,6 +15,25 @@ struct LogEntry: Identifiable {
     let isError: Bool
 }
 
+enum SigningMode: String, CaseIterable, Identifiable {
+    case certificate
+    case appleID
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .certificate: return "证书签名（p12 + 描述文件）"
+        case .appleID: return "Apple ID 证书（只要 p12）"
+        }
+    }
+    var shortTitle: String {
+        switch self {
+        case .certificate: return "证书"
+        case .appleID: return "Apple ID"
+        }
+    }
+}
+
 enum PairingKind: String {
     case classic = "经典配对文件"
     case rpp = "RPP 配对文件（iOS 26）"
