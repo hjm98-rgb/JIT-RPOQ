@@ -59,6 +59,7 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_remotepairing._tcp</string>
+		<string>_remotepairing-pairable-host._tcp</string>
 	</array>
 	<key>NSFaceIDUsageDescription</key>
 	<string>用于保护配对文件与脚本配置。</string>

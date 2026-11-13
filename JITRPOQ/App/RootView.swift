@@ -63,6 +63,9 @@ struct RootView: View {
                     }
             }
         }
+        .onChange(of: model.homeRequest) { _, _ in
+            tab = .home
+        }
         .onChange(of: model.apps.count) { _, _ in
             model.consumePendingAuto()
         }

@@ -12,6 +12,7 @@ struct HomeView: View {
     @State private var showImporter = false
     @State private var showTextImport = false
     @State private var pastedText = ""
+    @State private var showGenerator = false
 
     var body: some View {
         NavigationStack {
@@ -53,6 +54,10 @@ struct HomeView: View {
                 model.importPairing(from: url)
             }
             .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showGenerator) {
+            PairingGeneratorView()
+                .environmentObject(model)
         }
         .sheet(isPresented: $showTextImport) {
             NavigationStack {
@@ -200,6 +205,9 @@ struct HomeView: View {
                 ActionButton(title: "粘贴文本", systemImage: "doc.on.clipboard") {
                     showTextImport = true
                 }
+            }
+            ActionButton(title: "一键生成配对文件（iOS 27）", systemImage: "wand.and.stars") {
+                showGenerator = true
             }
             if model.pairingExists {
                 ActionButton(title: "移除配对文件", systemImage: "trash") {

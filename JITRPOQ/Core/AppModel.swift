@@ -52,6 +52,7 @@ final class AppModel: ObservableObject {
     }
 
     @Published var sessionBundle: String?
+    @Published var homeRequest = UUID()
     @Published var profile: ProvisioningProfile?
     @Published var profileFileName: String?
     @Published var profileRawData: Data?
@@ -599,6 +600,16 @@ final class AppModel: ObservableObject {
                 }
             }
         }
+    }
+
+    func requestHome() {
+        homeRequest = UUID()
+    }
+
+    /// iOS 27 无线配对生成的文件：直接导入并提示。
+    func importGeneratedPairing(at url: URL, deviceName: String?) {
+        importPairing(from: url, kind: .rpp)
+        toast = deviceName.map { "配对完成：\($0)" } ?? "配对文件已生成"
     }
 
     func enable(_ app: InstalledApp, script: String? = nil) {

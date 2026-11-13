@@ -113,8 +113,10 @@ enum Theme {
     static let accent2 = Color(red: 1.0, green: 0.72, blue: 0.30)
     static let textPrimary = Color.white.opacity(0.92)
     static let textSecondary = Color.white.opacity(0.5)
+    static let textTertiary = Color.white.opacity(0.35)
     static let green = Color(red: 0.35, green: 0.95, blue: 0.55)
     static let red = Color(red: 1.0, green: 0.42, blue: 0.42)
+    static let orange = Color(red: 1.0, green: 0.62, blue: 0.26)
 }
 
 struct PackageIcon: View {
