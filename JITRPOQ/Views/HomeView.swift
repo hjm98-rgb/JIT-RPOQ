@@ -108,9 +108,18 @@ struct HomeView: View {
                     .foregroundStyle(Theme.textPrimary)
                 Text(model.vpnConnected
                      ? "LocalDevVPN 回环已连接，可以开 JIT"
-                     : "请打开 LocalDevVPN 并连接，否则无法连接设备")
+                     : "点「去开启」会打开 LocalDevVPN 并自动连接，连上后自动回到本 App")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !model.vpnConnected {
+                Button("去开启") {
+                    model.openLocalDevVPN()
+                }
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(Theme.red)
+                .buttonStyle(.plain)
             }
             Spacer()
             Button {
@@ -236,10 +245,8 @@ struct HomeView: View {
                 ActionButton(title: "重新检测", systemImage: "arrow.clockwise") {
                     model.probeVPN()
                 }
-                ActionButton(title: "打开 LocalDevVPN", systemImage: "arrow.up.right.square") {
-                    if let url = URL(string: "localdevvpn://") {
-                        UIApplication.shared.open(url)
-                    }
+                ActionButton(title: "去开启 VPN", systemImage: "lock.shield", prominent: !model.vpnConnected) {
+                    model.openLocalDevVPN()
                 }
             }
         }

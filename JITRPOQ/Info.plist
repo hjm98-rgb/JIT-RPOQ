@@ -60,6 +60,11 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>localdevvpn</string>
+		<string>shortcuts</string>
+	</array>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_remotepairing._tcp</string>

@@ -593,6 +593,24 @@ final class AppModel: ObservableObject {
 
     // MARK: - 自动开启
 
+    /// 打开 LocalDevVPN 并让它直接连上，连上后由它回跳 jitrpoq://vpn。
+    func openLocalDevVPN() {
+        guard let url = URL(string: "localdevvpn://connect?return=jitrpoq%3A%2F%2Fvpn") else { return }
+        if UIApplication.shared.canOpenURL(url) {
+            append("正在打开 LocalDevVPN 并自动连接…")
+            UIApplication.shared.open(url) { [weak self] ok in
+                if !ok {
+                    Task { @MainActor in
+                        self?.lastError = "无法拉起 LocalDevVPN，确认已安装支持自动连接的版本"
+                    }
+                }
+            }
+        } else {
+            lastError = "没检测到 LocalDevVPN（或当前版本不支持自动连接），请安装带 localdevvpn:// 的版本"
+            append("LocalDevVPN 未安装或版本过旧", error: true)
+        }
+    }
+
     func handleURL(_ url: URL) {
         guard let scheme = url.scheme?.lowercased(), scheme == "jitrpoq" else { return }
         let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
@@ -619,6 +637,9 @@ final class AppModel: ObservableObject {
             } else {
                 refreshApps()
             }
+        case "vpn":
+            append("LocalDevVPN 已连上，重新检测")
+            probeVPN()
         case "importpairing":
             toast = "请点「导入配对文件」"
         default:
