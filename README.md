@@ -59,22 +59,6 @@ JIT 的本质：应用以「被调试」状态启动并挂上 debugserver，`get
 - **批量开启**：应用页点「选择」勾选多个带 `get-task-allow` 的应用，底部「一键开 JIT」会逐个启动并附加。
 - **一键补齐配置**：主页一次完成配对校验 → VPN 探测 → 应用列表 → 图标预载。
 
-## Apple ID 云签名
-
-仓库内置 `.github/workflows/sign.yml`：在 GitHub Actions 的真实 macOS 上登录 Apple 开发者门户，申请开发证书与描述文件，把未签名 IPA 重签成可安装包。
-
-需要的 Secrets：
-
-| Secret | 说明 |
-| --- | --- |
-| `APPLE_ID` | Apple ID 邮箱 |
-| `APPLE_PASSWORD` | Apple ID 登录密码（只在云端 Mac 上使用） |
-| `CERT_PASSWORD` | 导出 p12 时使用的口令，自己定 |
-| `FASTLANE_SESSION` | 可选，`fastlane spaceauth -u <AppleID>` 生成的会话，用来跳过一次验证码 |
-| `TEAM_ID` | 可选，Team ID |
-
-运行后产物：`JITRPOQ-signed`（已签名 IPA）、`signing-materials`（p12 + mobileprovision）。
-
 ## 许可证
 
 本项目使用 **MIT License**，见 [`LICENSE`](LICENSE)。第三方组件许可见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。

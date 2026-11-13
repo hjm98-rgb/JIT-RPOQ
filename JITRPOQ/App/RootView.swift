@@ -10,7 +10,7 @@ struct RootView: View {
     @State private var tab: Tab = .home
 
     enum Tab: Hashable {
-        case home, apps, signing, scripts, logs
+        case home, apps, scripts, logs
     }
 
     var body: some View {
@@ -22,10 +22,6 @@ struct RootView: View {
             AppsView()
                 .tabItem { Label("应用", systemImage: "square.grid.2x2") }
                 .tag(Tab.apps)
-
-            SigningView()
-                .tabItem { Label("签名", systemImage: "checkmark.seal") }
-                .tag(Tab.signing)
 
             ScriptsView()
                 .tabItem { Label("脚本", systemImage: "curlybraces") }
