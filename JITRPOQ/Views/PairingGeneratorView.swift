@@ -13,61 +13,86 @@ final class PairingGeneratorModel: ObservableObject {
     @Published var status: String = "还没有开始"
     @Published var lines: [String] = []
     @Published var finished = false
+    @Published var deviceSummary: String?
 
-    private var generator: PairingGenerator?
+    private var host: WirelessPairingHost?
 
     var onSuccess: ((URL) -> Void)?
 
     func start() {
         guard !running else { return }
-        let gen = PairingGenerator()
-        generator = gen
         pin = nil
         lines = []
+        deviceSummary = nil
         finished = false
         running = true
-        status = "正在广播配对服务…"
+        status = "正在生成主机身份并广播配对服务…"
 
-        gen.onPin = { [weak self] code in
-            Task { @MainActor in
-                self?.pin = code
-                self?.append("收到配对码：\(code)")
+        PairingKeepAlive.shared.start()
+
+        let host = WirelessPairingHost(
+            log: { [weak self] line in
+                Task { @MainActor in
+                    self?.append(line)
+                }
+            },
+            onPin: { [weak self] code in
+                Task { @MainActor in
+                    self?.pin = code
+                    self?.status = "设备已连接，请在 iPhone 上输入配对码"
+                    self?.append("收到配对码：\(code)")
+                }
+            },
+            completion: { [weak self] result in
+                Task { @MainActor in
+                    self?.handle(result)
+                }
             }
+        )
+        self.host = host
+
+        do {
+            try host.start()
+            status = "已开始广播，等待 iPhone 在开发者模式里点「Pair with JIT RPOQ」"
+            append("配对服务已启动")
+        } catch {
+            running = false
+            status = "启动失败：\(error.localizedDescription)"
+            append(error.localizedDescription)
+            PairingKeepAlive.shared.stop()
         }
-        gen.onStatus = { [weak self] text in
-            Task { @MainActor in
-                self?.status = text
-                self?.append(text)
-            }
-        }
-        gen.onFinish = { [weak self] result in
-            Task { @MainActor in
-                guard let self else { return }
-                self.handleFinish(result)
-            }
-        }
-        gen.start()
     }
 
-    private func handleFinish(_ result: Result<URL, Error>) {
+    private func handle(_ result: Swift.Result<WirelessPairingHost.Result, Error>) {
         running = false
+        PairingKeepAlive.shared.stop()
+        guard let host else { return }
+        host.stop()
+        self.host = nil
+
         switch result {
-            case .success(let url):
-                finished = true
-                pin = nil
-                status = "配对成功，配对文件已自动导入"
-                append("配对文件已写入：\(url.lastPathComponent)")
-                onSuccess?(url)
-            case .failure(let error):
-                pin = nil
-                status = "配对未完成：\(error.localizedDescription)"
-                append(error.localizedDescription)
-            }
+        case .success(let info):
+            finished = true
+            pin = nil
+            status = "配对成功，配对文件已自动导入"
+            var parts: [String] = []
+            if let name = info.deviceName { parts.append(name) }
+            if let model = info.deviceModel { parts.append(model) }
+            if let udid = info.udid { parts.append(udid) }
+            deviceSummary = parts.isEmpty ? nil : parts.joined(separator: " · ")
+            append("配对文件已写入：\(info.url.lastPathComponent)")
+            onSuccess?(info.url)
+        case .failure(let error):
+            pin = nil
+            status = "配对未完成：\(error.localizedDescription)"
+            append(error.localizedDescription)
+        }
     }
 
     func cancel() {
-        generator?.cancelPairing()
-        generator = nil
+        host?.stop()
+        host = nil
+        PairingKeepAlive.shared.stop()
         running = false
         pin = nil
         status = "已取消"

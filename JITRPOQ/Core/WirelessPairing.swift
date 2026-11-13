@@ -10,6 +10,8 @@
 
 import Foundation
 import Network
+import AVFoundation
+import idevice
 
 private final class PinBox {
     let handler: (String) -> Void

@@ -13,7 +13,6 @@ struct HomeView: View {
     @State private var showGenerator = false
     @State private var showTextImport = false
     @State private var pastedText = ""
-    @State private var showGenerator = false
 
     var body: some View {
         NavigationStack {
