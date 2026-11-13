@@ -1,6 +1,6 @@
 {
-  "version": "1.1.0",
-  "notes": "首个带自动更新提示的版本。配对、图标、VPN 检测、iOS 27 一键生成配对文件均已包含。",
+  "version": "1.2.0",
+  "notes": "iOS 27 一键生成配对文件；VPN 实时检测、真实应用图标、导入配对文件卡死修复；更新改为苹果无线安装协议。",
   "url": "itms-services://?action=download-manifest&url=https://github.com/hjm98-rgb/JIT-RPOQ/releases/download/ota/manifest.plist",
   "page": "https://github.com/hjm98-rgb/JIT-RPOQ/releases/latest"
 }
