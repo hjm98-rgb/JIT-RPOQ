@@ -34,6 +34,8 @@ struct RootView: View {
         }
         .sheet(item: $model.availableUpdate) { update in
             UpdatePromptView(update: update) {
+                model.downloadUpdate()
+            } onAdvancedSign: {
                 model.beginUpdateSigning()
             } onLater: {
                 model.postponeUpdate()

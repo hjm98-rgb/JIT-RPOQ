@@ -321,6 +321,18 @@ final class AppModel: ObservableObject {
         return try Data(contentsOf: url)
     }
 
+    /// 公开更新路径：打开下载页，用户用自己的签名工具签，不需要提供任何密钥。
+    func downloadUpdate() {
+        guard let update = availableUpdate else { return }
+        let target = update.page ?? update.url
+        if let raw = target, let url = URL(string: raw) {
+            append("打开下载页：v\(update.version)")
+            UIApplication.shared.open(url)
+        }
+        availableUpdate = nil
+        dismissedUpdateVersion = update.version
+    }
+
     func installUpdate() {
         guard let update = availableUpdate else { return }
         append("打开无线安装协议：v\(update.version)")
