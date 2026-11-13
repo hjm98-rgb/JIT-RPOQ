@@ -52,15 +52,6 @@ final class AppModel: ObservableObject {
     }
 
     @Published var sessionBundle: String?
-    @Published var availableUpdate: AppUpdate?
-    @Published var showUpdateSigning = false
-    @Published var signingBusy = false
-    @Published var signingDone = false
-    @Published var signingStatus = "等待开始"
-    @Published var signingVersion = ""
-    @Published var checkingUpdate = false
-    @Published var currentVersion = UpdateChecker.currentVersion
-    private var dismissedUpdateVersion: String?
     @Published var homeRequest = UUID()
     @Published var batchRunning = false
     @Published var batchTotal = 0
@@ -81,7 +72,6 @@ final class AppModel: ObservableObject {
             Task { @MainActor in self?.append(line, error: false) }
         }
         loadCachedIcons()
-        checkForUpdates()
         refreshPairingState()
         probeVPN()
         startVPNMonitor()
@@ -171,149 +161,7 @@ final class AppModel: ObservableObject {
         return dict["UDID"] != nil ? .classic : .rpp
     }
 
-    /// 把剪贴板里的配对 plist 文本存成文件。
     /// iOS 27 本机配对完成后：配对文件已在沙盒里，直接校验 + 生效。
-    // MARK: - 更新
-
-    func checkForUpdates(force: Bool = false) {
-        guard !checkingUpdate else { return }
-        checkingUpdate = true
-        Task.detached(priority: .utility) {
-            defer { Task { @MainActor in self.checkingUpdate = false } }
-            do {
-                let update = try await UpdateChecker.fetch()
-                await MainActor.run {
-                    if let update {
-                        if update.version != self.dismissedUpdateVersion || force {
-                            self.availableUpdate = update
-                            self.append("发现新版本 v\(update.version)（当前 v\(UpdateChecker.currentVersion)）")
-                        }
-                    } else if force {
-                        self.toast = "已是最新版本 v\(UpdateChecker.currentVersion)"
-                        self.append("检查更新：已是最新版本")
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    if force { self.lastError = "检查更新失败：\(error.localizedDescription)" }
-                }
-            }
-        }
-    }
-
-    /// 点「更新」后进入证书配置：先收材料，再让云端签名，最后走无线安装。
-    func beginUpdateSigning() {
-        signingVersion = availableUpdate?.version ?? UpdateChecker.currentVersion
-        signingDone = false
-        signingBusy = false
-        signingStatus = "导入签名材料后点确认"
-        availableUpdate = nil
-        showUpdateSigning = true
-    }
-
-    func submitUpdateSigning(mode: SigningMode, p12URL: URL?, profileURL: URL?, password: String, pat: String) {
-        guard !signingBusy else { return }
-        let token = pat.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else {
-            lastError = "需要 GitHub PAT（repo + workflow 权限）来触发云端签名"
-            return
-        }
-        guard let p12URL else {
-            lastError = "先导入 p12 证书"
-            return
-        }
-        guard !password.isEmpty else {
-            lastError = "填写 p12 密码"
-            return
-        }
-
-        signingBusy = true
-        signingDone = false
-        signingStatus = "读取签名材料…"
-        append("开始云端签名：v\(signingVersion)（\(mode.title)）")
-
-        let version = signingVersion
-        let bundleID = "com.rpoq.jitlauncher"
-
-        Task.detached(priority: .userInitiated) {
-            do {
-                let p12Data = try Self.readCopy(at: p12URL)
-                let profileData = try profileURL.flatMap { try Self.readCopy(at: $0) }
-
-                try await CloudSigner.setSecret(name: "P12_BASE64", value: p12Data.base64EncodedString(), token: token)
-                try await CloudSigner.setSecret(name: "P12_PASSWORD", value: password, token: token)
-                if let profileData {
-                    try await CloudSigner.setSecret(name: "PROFILE_BASE64", value: profileData.base64EncodedString(), token: token)
-                }
-                Keychain.set(token, for: "GITHUB_PAT")
-
-                await MainActor.run { self.signingStatus = "触发云端签名…" }
-                try await CloudSigner.dispatchSign(mode: mode == .appleID ? "appleid" : "cert",
-                                                  bundleID: bundleID,
-                                                  version: version,
-                                                  token: token)
-
-                await MainActor.run { self.signingStatus = "云端排队中…" }
-                for _ in 0..<90 {
-                    try await Task.sleep(nanoseconds: 10_000_000_000)
-                    if let run = try await CloudSigner.latestSignRun(token: token) {
-                        await MainActor.run {
-                            switch run.status {
-                            case "completed":
-                                let ok = run.conclusion == "success"
-                                self.signingDone = ok
-                                self.signingStatus = ok ? "签名完成，可以无线安装" : "签名失败：\(run.conclusion ?? "unknown")"
-                            case "queued":
-                                self.signingStatus = "云端排队中…"
-                            default:
-                                self.signingStatus = "正在签名…"
-                            }
-                        }
-                        if run.status == "completed" { break }
-                    }
-                }
-                await MainActor.run {
-                    self.signingBusy = false
-                    if self.signingDone { self.append("云端签名完成，已生成安装清单") }
-                }
-            } catch {
-                await MainActor.run {
-                    self.signingBusy = false
-                    self.signingStatus = "签名失败"
-                    self.fail(error)
-                }
-            }
-        }
-    }
-
-    /// 打开苹果无线安装协议，直接覆盖安装签名后的包。
-    func openOTAInstall() {
-        guard let url = URL(string: CloudSigner.otaInstallURL) else { return }
-        append("打开无线安装：v\(signingVersion)")
-        UIApplication.shared.open(url)
-        showUpdateSigning = false
-        signingDone = false
-        dismissedUpdateVersion = signingVersion
-    }
-
-    nonisolated static func readCopy(at url: URL) throws -> Data {
-        let accessing = url.startAccessingSecurityScopedResource()
-        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-        return try Data(contentsOf: url)
-    }
-
-    func installUpdate() {
-        guard let update = availableUpdate else { return }
-        append("打开无线安装协议：v\(update.version)")
-        _ = UpdateChecker.install(update)
-        availableUpdate = nil
-        dismissedUpdateVersion = update.version
-    }
-
-    func postponeUpdate() {
-        dismissedUpdateVersion = availableUpdate?.version
-        availableUpdate = nil
-    }
 
     func applyGeneratedPairing() {
         do {
