@@ -58,29 +58,7 @@ JIT 的本质：应用以「被调试」状态启动并挂上 debugserver，`get
 - **URL Scheme 互调**：其他启动器可以 `open jitrpoq://enable?bundle=<BundleID>` 让 JIT RPOQ 接管这次开启（`jitrpoq://launch?bundle=` 普通启动，`jitrpoq://auto` 回到自动模式）。
 - **批量开启**：应用页点「选择」勾选多个带 `get-task-allow` 的应用，底部「一键开 JIT」会逐个启动并附加。
 - **一键补齐配置**：主页一次完成配对校验 → VPN 探测 → 应用列表 → 图标预载。
-
-## 更新提示与无线安装
-
-App 启动和回到前台时会拉仓库根目录的 `update.json`，版本号比当前大就弹更新提示，点「立即更新」走苹果的 `itms-services://` 无线安装协议。
-
-发新版的步骤：
-
-1. 打包出的 IPA 先用自己的证书签名，放到任意 HTTPS 可访问的地址
-2. 复制 `ota/manifest.plist`，把里面的 `software-package url` 改成签名后 IPA 的地址，`bundle-version` 改成新版本号，把这个 manifest 也放到 HTTPS 上
-3. 改 `update.json`：
-
-```json
-{
-  "version": "1.2.0",
-  "notes": "这一版改了什么",
-  "url": "itms-services://?action=download-manifest&url=https://你的域名/ota/manifest.plist",
-  "page": "https://github.com/hjm98-rgb/JIT-RPOQ/releases/latest"
-}
-```
-
-4. 推 `main`。所有已经装了本版本 App 的设备，下次打开就会自动弹提示，确认后直接覆盖安装。
-
-`url` 留空时，点「立即更新」会退回到 `page` 里的链接（浏览器下载，需要自己签名安装）。
+- **一键生成配对文件（iOS 27）**：本机广播 `_remotepairing-pairable-host._tcp`，在设置 › 开发者模式里点「Pair with JIT RPOQ」+ 输入配对码，配对文件直接就位并自动导入。
 
 ## 许可证
 
