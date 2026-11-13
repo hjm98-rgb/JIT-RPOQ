@@ -78,7 +78,7 @@ final class WirelessPairingHost: NSObject, NetServiceDelegate {
         var txt: [String: Data] = [:]
         if let txtPointer, txtLength > 0 {
             let data = Data(bytes: txtPointer, count: txtLength)
-            idevice_data_free(txtPointer, txtLength)
+            idevice_data_free(txtPointer, Int(txtLength))
             txt = Self.parseTXT(data)
         }
         log("主机身份已生成：\(serviceID)")
@@ -188,7 +188,7 @@ final class WirelessPairingHost: NSObject, NetServiceDelegate {
         guard let hostHandle else { return }
         let box = PinBox(onPin)
         var pairingFile: OpaquePointer?
-        var peer: OpaquePointer?
+        var peer: UnsafeMutablePointer<RpPairingPeerDeviceC>?
 
         let error = pairable_host_accept_fd(hostHandle, fd, jitPairingPinTrampoline,
                                             Unmanaged.passUnretained(box).toOpaque(),
@@ -219,7 +219,7 @@ final class WirelessPairingHost: NSObject, NetServiceDelegate {
         var deviceModel: String?
         var udid: String?
         if let peer {
-            let info = peer.assumingMemoryBound(to: RpPairingPeerDeviceC.self).pointee
+            let info = peer.pointee
             if let name = info.name { deviceName = String(cString: name) }
             if let model = info.model { deviceModel = String(cString: model) }
             if let identifier = info.udid { udid = String(cString: identifier) }
