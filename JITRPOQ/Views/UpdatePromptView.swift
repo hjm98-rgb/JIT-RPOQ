@@ -8,7 +8,6 @@ import SwiftUI
 struct UpdatePromptView: View {
     let update: AppUpdate
     let onInstall: () -> Void
-    let onAdvancedSign: () -> Void
     let onLater: () -> Void
 
     var body: some View {
@@ -42,21 +41,14 @@ struct UpdatePromptView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
 
-            Text("点「下载新版本」会打开下载页，拿到 IPA 后用你自己的签名工具（全能签 / 小白签 / 个人证书）签名安装，覆盖旧版本即可，配对文件和设置都会保留。")
+            Text("点「立即更新」会调起苹果的无线安装协议，确认后直接从安装清单下载新版本并覆盖安装，配对文件和设置都会保留。")
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(spacing: 10) {
-                ActionButton(title: "下载新版本", systemImage: "arrow.down.app.fill", prominent: true) {
+                ActionButton(title: "立即更新", systemImage: "arrow.down.app.fill", prominent: true) {
                     onInstall()
-                }
-                Button {
-                    onAdvancedSign()
-                } label: {
-                    Text("高级：云端签名后无线安装")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Theme.accent)
                 }
                 ActionButton(title: "稍后再说", systemImage: "clock") {
                     onLater()

@@ -24,6 +24,8 @@ jobs:
   sign:
     runs-on: macos-15
     steps:
+      - uses: actions/checkout@v4
+
       - name: 下载最新的未签名 IPA
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -158,3 +160,19 @@ jobs:
           gh release view ota --repo ${{ github.repository }} > /dev/null 2>&1 || \
             gh release create ota --repo ${{ github.repository }} --title "OTA 签名包" --notes "签名后的安装包与无线安装清单"
           gh release upload ota JITRPOQ-signed.ipa manifest.plist --repo ${{ github.repository }} --clobber
+
+      - name: 更新 Pages 上的安装清单
+        run: |
+          set -e
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("docs/manifest.plist")
+          s = p.read_text()
+          s = s.replace("<string>1.0.0</string>", "<string>${{ inputs.version }}</string>")
+          p.write_text(s)
+          PY
+          git config user.name "JIT RPOQ Bot"
+          git config user.email "bot@rpoq.local"
+          git add docs/manifest.plist
+          git commit -m "ci: update OTA manifest for ${{ inputs.version }} [skip ci]" || true
+          git push

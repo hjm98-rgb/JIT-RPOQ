@@ -347,7 +347,7 @@ struct HomeView: View {
                 }
                 Spacer()
                 if model.availableUpdate != nil {
-                    Button("立即更新") { model.beginUpdateSigning() }
+                    Button("立即更新") { model.installUpdate() }
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Theme.accent)
                 } else {

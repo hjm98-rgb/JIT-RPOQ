@@ -7,6 +7,7 @@ on:
 
 jobs:
   build:
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: macos-15
     timeout-minutes: 45
     steps:
@@ -49,6 +50,51 @@ jobs:
           cd out
           zip -r -y JITRPOQ-unsigned.ipa Payload
           ls -lh JITRPOQ-unsigned.ipa
+
+      - name: 生成无线安装清单并发布到固定地址
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          VERSION=$(grep -m1 'MARKETING_VERSION' project.yml | sed -E 's/.*"([^"]+)".*/\1/')
+          IPA_URL="https://github.com/${{ github.repository }}/releases/download/ota/JITRPOQ-unsigned.ipa"
+          cat > out/manifest.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>items</key>
+            <array>
+              <dict>
+                <key>assets</key>
+                <array>
+                  <dict>
+                    <key>kind</key>
+                    <string>software-package</string>
+                    <key>url</key>
+                    <string>${IPA_URL}</string>
+                  </dict>
+                </array>
+                <key>metadata</key>
+                <dict>
+                  <key>bundle-identifier</key>
+                  <string>com.rpoq.jitlauncher</string>
+                  <key>bundle-version</key>
+                  <string>${VERSION}</string>
+                  <key>kind</key>
+                  <string>software</string>
+                  <key>title</key>
+                  <string>JIT RPOQ</string>
+                </dict>
+              </dict>
+            </array>
+          </dict>
+          </plist>
+          PLIST
+
+          gh release view ota --repo ${{ github.repository }} > /dev/null 2>&1 ||             gh release create ota --repo ${{ github.repository }} --title "OTA 固定安装地址" --notes "App 的无线安装清单固定指向这里，换包只覆盖资源即可。"
+          gh release upload ota out/JITRPOQ-unsigned.ipa out/manifest.plist --repo ${{ github.repository }} --clobber
+          echo "manifest: https://github.com/${{ github.repository }}/releases/download/ota/manifest.plist"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4

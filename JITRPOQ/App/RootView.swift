@@ -34,16 +34,10 @@ struct RootView: View {
         }
         .sheet(item: $model.availableUpdate) { update in
             UpdatePromptView(update: update) {
-                model.downloadUpdate()
-            } onAdvancedSign: {
-                model.beginUpdateSigning()
+                model.installUpdate()
             } onLater: {
                 model.postponeUpdate()
             }
-        }
-        .sheet(isPresented: $model.showUpdateSigning) {
-            UpdateSigningView()
-                .environmentObject(model)
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.checkForUpdates() }
