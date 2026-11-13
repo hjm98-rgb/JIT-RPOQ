@@ -8,6 +8,7 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject var model: AppModel
     @State private var tab: Tab = .home
+    @Environment(\.scenePhase) private var scenePhase
 
     enum Tab: Hashable {
         case home, apps, scripts, logs
@@ -76,7 +77,10 @@ struct JITRPOQApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(model)
-                .onOpenURL { url in
+                .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.probeVPN() }
+        }
+        .onOpenURL { url in
                     model.handleURL(url)
                 }
         }
