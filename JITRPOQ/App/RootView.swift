@@ -66,6 +66,9 @@ struct RootView: View {
         .onChange(of: model.apps.count) { _, _ in
             model.consumePendingAuto()
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.probeVPN() }
+        }
     }
 }
 
@@ -77,10 +80,7 @@ struct JITRPOQApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(model)
-                .onChange(of: scenePhase) { _, phase in
-            if phase == .active { model.probeVPN() }
-        }
-        .onOpenURL { url in
+                .onOpenURL { url in
                     model.handleURL(url)
                 }
         }
