@@ -17,7 +17,7 @@ struct SettingsView: View {
 
     var body: some View {
         ZStack {
-            SkyBackground(mood: .night)
+            SkyBackground(kind: .rooftop)
             Color.black.opacity(0.42).ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
@@ -38,7 +38,7 @@ struct SettingsView: View {
         HStack(alignment: .center) {
             Text(t("settings.title"))
                 .font(.system(size: 30, weight: .semibold, design: .serif))
-                .foregroundStyle(SkyMood.night.textPrimary)
+                .foregroundStyle(SceneKind.rooftop.textPrimary)
             Spacer()
             GlassCircleButton(systemImage: "xmark", size: 40, action: onClose)
         }

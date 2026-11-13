@@ -119,7 +119,10 @@ struct PairingGeneratorView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
+            ZStack {
+                SkyBackground(kind: .cloudSea)
+                Color.black.opacity(SceneKind.cloudSea.veil).ignoresSafeArea()
+                ScrollView {
                 VStack(spacing: 14) {
                     headerCard
                     stepsCard
@@ -128,11 +131,13 @@ struct PairingGeneratorView: View {
                         logCard
                     }
                 }
-                .padding(16)
+                    .padding(16)
+                }
             }
-            .background(Theme.background.ignoresSafeArea())
             .navigationTitle("一键生成配对文件")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("关闭") {

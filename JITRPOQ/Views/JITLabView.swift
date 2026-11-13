@@ -31,8 +31,8 @@ struct JITLabView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ZStack {
-                SkyBackground(mood: .dusk)
-                Color.black.opacity(0.14).ignoresSafeArea()
+                SkyBackground(kind: .descent)
+                Color.black.opacity(SceneKind.descent.veil).ignoresSafeArea()
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 18) {
@@ -76,13 +76,13 @@ struct JITLabView: View {
 
             Text(t("lab.title"))
                 .font(.system(size: 34, weight: .semibold, design: .serif))
-                .foregroundStyle(SkyMood.dusk.textPrimary)
+                .foregroundStyle(SceneKind.descent.textPrimary)
                 .shadow(color: .black.opacity(0.35), radius: 12, y: 3)
 
             Text(t("lab.subtitle"))
                 .font(.system(size: 13))
                 .tracking(0.6)
-                .foregroundStyle(SkyMood.dusk.textSecondary)
+                .foregroundStyle(SceneKind.descent.textSecondary)
         }
         .padding(.bottom, 4)
     }
@@ -200,8 +200,8 @@ struct PairingSectionView: View {
 
     var body: some View {
         ZStack {
-            SkyBackground(mood: .dusk)
-            Color.black.opacity(0.40).ignoresSafeArea()
+            SkyBackground(kind: .mountain)
+            Color.black.opacity(SceneKind.mountain.veil).ignoresSafeArea()
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {

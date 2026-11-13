@@ -50,7 +50,12 @@ struct LogView: View {
                 }
             }
         }
-        .background(Color.black.opacity(0.38).ignoresSafeArea())
+        .background {
+            ZStack {
+                SkyBackground(kind: .server)
+                Color.black.opacity(SceneKind.server.veil).ignoresSafeArea()
+            }
+        }
         .navigationTitle("日志")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

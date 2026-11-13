@@ -21,13 +21,13 @@ struct RootView: View {
         case lab
     }
 
-    private var mood: SkyMood {
-        stage == .hub ? .day : .dusk
+    private var mood: SceneKind {
+        stage == .hub ? .day : .descent
     }
 
     var body: some View {
         ZStack {
-            SkyBackground(mood: mood, animated: model.skyAnimation, fall: fall)
+            SkyBackground(kind: mood, animated: model.skyAnimation, fall: fall)
 
             Color.black.opacity(stage == .hub ? 0.08 : 0.16)
                 .ignoresSafeArea()

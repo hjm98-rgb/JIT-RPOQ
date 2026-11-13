@@ -25,7 +25,7 @@ struct Card<Content: View>: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.card)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Theme.stroke, lineWidth: 1)
@@ -105,14 +105,14 @@ struct InfoRow: View {
 }
 
 enum Theme {
-    static let background = Color(red: 0.05, green: 0.06, blue: 0.09)
-    static let card = Color(red: 0.09, green: 0.10, blue: 0.14)
-    static let cardAlt = Color(red: 0.13, green: 0.14, blue: 0.19)
-    static let stroke = Color.white.opacity(0.08)
+    static let background = Color.clear
+    static let card = Color.white.opacity(0.10)
+    static let cardAlt = Color.white.opacity(0.16)
+    static let stroke = Color.white.opacity(0.18)
     static let accent = Color(red: 0.35, green: 0.95, blue: 0.75)
     static let accent2 = Color(red: 1.0, green: 0.72, blue: 0.30)
     static let textPrimary = Color.white.opacity(0.92)
-    static let textSecondary = Color.white.opacity(0.5)
+    static let textSecondary = Color.white.opacity(0.68)
     static let textTertiary = Color.white.opacity(0.35)
     static let green = Color(red: 0.35, green: 0.95, blue: 0.55)
     static let red = Color(red: 1.0, green: 0.42, blue: 0.42)

@@ -2,95 +2,129 @@
 //  SkyScene.swift
 //  JIT RPOQ
 //
-//  写实天空：真实摄影云层 + 缓慢推移 + 分层视差。
-//  所有位移都用连续时间计算，避免任何跳变。
+//  每个页面一套独立场景：全部是真实摄影素材 + 连续时间的缓慢运镜。
+//  室内走横向推移 + 光带扫过，室外走推移 + 分层云视差，保证没有一块是静态图。
 //
 
 import SwiftUI
 
-enum SkyMood: String, CaseIterable {
-    case day
-    case dusk
-    case night
+enum SceneKind: String, CaseIterable {
+    case day          // 首页：白昼天空
+    case descent      // 实验室：云端俯冲
+    case rooftop      // 设置：夜间天台
+    case control      // 应用：控制室
+    case study        // 脚本：深夜书房
+    case server       // 日志：机房走廊
+    case mountain     // 配对：黎明雪山
+    case cloudSea     // 本机配对：云海之上
 
     var imageName: String {
         switch self {
         case .day: return "SkyDay"
-        case .dusk: return "SkyDusk"
-        case .night: return "SkyNight"
+        case .descent: return "SceneDescent"
+        case .rooftop: return "SceneRooftop"
+        case .control: return "SceneControl"
+        case .study: return "SceneStudy"
+        case .server: return "SceneServer"
+        case .mountain: return "SceneMountain"
+        case .cloudSea: return "SceneCloudSea"
         }
     }
 
-    /// 顶部到中部的染色，让不同场景有各自的时间感
+    var indoor: Bool {
+        switch self {
+        case .control, .study, .server: return true
+        default: return false
+        }
+    }
+
+    var usesCloudLayer: Bool {
+        switch self {
+        case .day, .descent, .cloudSea: return true
+        default: return false
+        }
+    }
+
     var topTint: Color {
         switch self {
         case .day: return Color(red: 0.10, green: 0.36, blue: 0.68)
-        case .dusk: return Color(red: 0.42, green: 0.24, blue: 0.42)
-        case .night: return Color(red: 0.04, green: 0.06, blue: 0.16)
+        case .descent: return Color(red: 0.06, green: 0.20, blue: 0.46)
+        case .rooftop: return Color(red: 0.03, green: 0.05, blue: 0.14)
+        case .control: return Color(red: 0.04, green: 0.12, blue: 0.20)
+        case .study: return Color(red: 0.18, green: 0.10, blue: 0.04)
+        case .server: return Color(red: 0.03, green: 0.09, blue: 0.10)
+        case .mountain: return Color(red: 0.24, green: 0.36, blue: 0.52)
+        case .cloudSea: return Color(red: 0.10, green: 0.30, blue: 0.56)
         }
     }
 
     var bottomTint: Color {
         switch self {
         case .day: return Color(red: 0.72, green: 0.86, blue: 0.96)
-        case .dusk: return Color(red: 0.98, green: 0.66, blue: 0.42)
-        case .night: return Color(red: 0.10, green: 0.10, blue: 0.22)
+        case .descent: return Color(red: 0.74, green: 0.84, blue: 0.94)
+        case .rooftop: return Color(red: 0.10, green: 0.12, blue: 0.24)
+        case .control: return Color(red: 0.06, green: 0.24, blue: 0.30)
+        case .study: return Color(red: 0.36, green: 0.20, blue: 0.08)
+        case .server: return Color(red: 0.05, green: 0.22, blue: 0.20)
+        case .mountain: return Color(red: 0.86, green: 0.82, blue: 0.78)
+        case .cloudSea: return Color(red: 0.84, green: 0.86, blue: 0.84)
         }
     }
 
-    var cloudTint: Color {
-        switch self {
-        case .day: return .white
-        case .dusk: return Color(red: 1.0, green: 0.86, blue: 0.72)
-        case .night: return Color(red: 0.62, green: 0.70, blue: 0.92)
-        }
-    }
-
-    var cloudOpacity: Double {
-        switch self {
-        case .day: return 0.88
-        case .dusk: return 0.72
-        case .night: return 0.34
-        }
-    }
-
-    /// 光晕（白昼是太阳的方向感，黄昏是落日余晖，夜晚是月亮的冷光）
     var glowColor: Color {
         switch self {
-        case .day: return Color(red: 1.0, green: 0.98, blue: 0.88)
-        case .dusk: return Color(red: 1.0, green: 0.72, blue: 0.40)
-        case .night: return Color(red: 0.72, green: 0.80, blue: 1.0)
+        case .study: return Color(red: 1.0, green: 0.74, blue: 0.40)
+        case .server: return Color(red: 0.36, green: 0.92, blue: 0.86)
+        case .control: return Color(red: 0.46, green: 0.80, blue: 1.0)
+        case .rooftop: return Color(red: 0.60, green: 0.72, blue: 1.0)
+        default: return Color(red: 1.0, green: 0.97, blue: 0.88)
         }
     }
 
     var glowOpacity: Double {
         switch self {
-        case .day: return 0.55
-        case .dusk: return 0.60
-        case .night: return 0.22
+        case .study: return 0.42
+        case .server: return 0.30
+        case .control: return 0.38
+        case .rooftop: return 0.22
+        default: return 0.40
         }
     }
 
-    var textPrimary: Color {
+    var glowCenter: UnitPoint {
         switch self {
-        case .day: return Color(white: 1.0)
-        case .dusk: return Color(red: 1.0, green: 0.96, blue: 0.92)
-        case .night: return Color(red: 0.92, green: 0.95, blue: 1.0)
+        case .study: return UnitPoint(x: 0.30, y: 0.42)
+        case .server: return UnitPoint(x: 0.50, y: 0.30)
+        case .control: return UnitPoint(x: 0.52, y: 0.58)
+        case .rooftop: return UnitPoint(x: 0.70, y: 0.55)
+        default: return UnitPoint(x: 0.82, y: 0.16)
         }
     }
 
+    /// 文字对比度：室内偏暖白，室外纯白
+    var textPrimary: Color { Color.white.opacity(0.96) }
     var textSecondary: Color {
+        indoor ? Color(red: 1.0, green: 0.94, blue: 0.86, opacity: 0.72) : Color.white.opacity(0.76)
+    }
+
+    /// 压在场景上的暗化，保证玻璃面板里的字看得清
+    var veil: Double {
         switch self {
-        case .day: return Color(white: 1.0, opacity: 0.76)
-        case .dusk: return Color(red: 1.0, green: 0.93, blue: 0.86, opacity: 0.78)
-        case .night: return Color(red: 0.82, green: 0.88, blue: 1.0, opacity: 0.74)
+        case .day: return 0.06
+        case .descent: return 0.16
+        case .rooftop: return 0.28
+        case .control: return 0.34
+        case .study: return 0.38
+        case .server: return 0.34
+        case .mountain: return 0.30
+        case .cloudSea: return 0.24
         }
     }
 }
 
-/// 全屏天空。fall: 0 静止，1 表示急速下坠到底（切页瞬间用）。
+/// 全屏场景。fall: 0 静止，1 表示急速下坠到底（切页瞬间用）。
 struct SkyBackground: View {
-    var mood: SkyMood
+    var kind: SceneKind
     var animated: Bool = true
     var fall: Double = 0
 
@@ -108,7 +142,11 @@ struct SkyBackground: View {
 
                 ZStack {
                     baseImage(w: w, h: h, t: t)
-                    cloudField(w: w, h: h, t: t)
+                    if kind.indoor {
+                        lightSweep(w: w, h: h, t: t)
+                    } else if kind.usesCloudLayer {
+                        cloudField(w: w, h: h, t: t)
+                    }
                     colorGrade(w: w, h: h)
                     sunlight(w: w, h: h)
                     if fall > 0.72 {
@@ -128,17 +166,36 @@ struct SkyBackground: View {
     }
 
     private func baseImage(w: CGFloat, h: CGFloat, t: Double) -> some View {
-        Image(mood.imageName)
+        Image(kind.imageName)
             .resizable()
             .scaledToFill()
-            .frame(width: w * 1.12, height: h * 1.12)
-            .scaleEffect(1.04 + 0.035 * sin(t / 34.0))
-            .offset(x: CGFloat(sin(t / 46.0)) * w * 0.018,
-                    y: CGFloat(cos(t / 58.0)) * h * 0.014)
+            .frame(width: w * 1.16, height: h * 1.16)
+            .scaleEffect(kind.indoor ? 1.02 + 0.02 * sin(t / 44.0) : 1.04 + 0.035 * sin(t / 34.0))
+            .offset(x: CGFloat(sin(t / (kind.indoor ? 60.0 : 46.0))) * w * (kind.indoor ? 0.035 : 0.018),
+                    y: CGFloat(cos(t / 58.0)) * h * (kind.indoor ? 0.012 : 0.014))
             .position(x: w / 2, y: h / 2)
     }
 
-    /// 多层云：越靠下越大越慢，形成真实视差
+    /// 室内：一条很淡的横向光带缓慢扫过，像有光源在移动
+    private func lightSweep(w: CGFloat, h: CGFloat, t: Double) -> some View {
+        let cycle = 26.0
+        let progress = (t / cycle).truncatingRemainder(dividingBy: 1)
+        let x = CGFloat(progress) * (w * 1.6) - w * 0.3
+        return Rectangle()
+            .fill(
+                LinearGradient(
+                    colors: [Color.white.opacity(0), kind.glowColor.opacity(0.10), Color.white.opacity(0)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .frame(width: w * 0.42, height: h)
+            .rotationEffect(.degrees(12))
+            .position(x: x, y: h / 2)
+            .blendMode(.plusLighter)
+    }
+
+    /// 室外：多层云，越靠下越大越慢，形成真实视差
     private func cloudField(w: CGFloat, h: CGFloat, t: Double) -> some View {
         ZStack {
             ForEach(0..<4, id: \.self) { i in
@@ -154,8 +211,8 @@ struct SkyBackground: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: width)
-                    .colorMultiply(mood.cloudTint)
-                    .opacity(mood.cloudOpacity * (1.0 - 0.16 * index))
+                    .colorMultiply(.white)
+                    .opacity(0.72 - 0.14 * index)
                     .blur(radius: CGFloat(index) * 0.9)
                     .position(x: x, y: y)
             }
@@ -164,7 +221,7 @@ struct SkyBackground: View {
 
     private func colorGrade(w: CGFloat, h: CGFloat) -> some View {
         LinearGradient(
-            colors: [mood.topTint.opacity(0.34), Color.clear, mood.bottomTint.opacity(0.28)],
+            colors: [kind.topTint.opacity(0.34), Color.clear, kind.bottomTint.opacity(0.28)],
             startPoint: .top,
             endPoint: .bottom
         )
@@ -174,8 +231,8 @@ struct SkyBackground: View {
 
     private func sunlight(w: CGFloat, h: CGFloat) -> some View {
         RadialGradient(
-            colors: [mood.glowColor.opacity(mood.glowOpacity), Color.clear],
-            center: UnitPoint(x: 0.82, y: 0.16),
+            colors: [kind.glowColor.opacity(kind.glowOpacity), Color.clear],
+            center: kind.glowCenter,
             startRadius: 0,
             endRadius: max(w, h) * 0.62
         )
@@ -184,7 +241,7 @@ struct SkyBackground: View {
     }
 }
 
-/// 覆盖在天空上的玻璃面，统一质感
+/// 覆盖在场景上的玻璃面，统一质感
 struct GlassPanel<Content: View>: View {
     var corner: CGFloat = 22
     @ViewBuilder var content: Content

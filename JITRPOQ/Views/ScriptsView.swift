@@ -120,7 +120,12 @@ struct ScriptsView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
         }
-        .background(Color.black.opacity(0.38).ignoresSafeArea())
+        .background {
+            ZStack {
+                SkyBackground(kind: .study)
+                Color.black.opacity(SceneKind.study.veil).ignoresSafeArea()
+            }
+        }
         .navigationTitle("脚本")
         .navigationBarTitleDisplayMode(.inline)
     

@@ -41,10 +41,10 @@ struct HubView: View {
                 Text(t("hub.wordmark"))
                     .font(.system(size: 13, weight: .semibold))
                     .tracking(3.2)
-                    .foregroundStyle(SkyMood.day.textSecondary)
+                    .foregroundStyle(SceneKind.day.textSecondary)
                 Text(t("hub.headline"))
                     .font(.system(size: 26, weight: .semibold, design: .serif))
-                    .foregroundStyle(SkyMood.day.textPrimary)
+                    .foregroundStyle(SceneKind.day.textPrimary)
             }
             Spacer()
             GlassCircleButton(systemImage: "gearshape", action: onSettings)
@@ -67,10 +67,10 @@ struct HubView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(model.vpnConnected ? t("hub.vpnOn") : t("hub.vpnOff"))
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(SkyMood.day.textPrimary)
+                        .foregroundStyle(SceneKind.day.textPrimary)
                     Text(model.vpnConnected ? t("hub.vpnOnDetail") : t("hub.vpnOffDetail"))
                         .font(.system(size: 12))
-                        .foregroundStyle(SkyMood.day.textSecondary)
+                        .foregroundStyle(SceneKind.day.textSecondary)
                 }
 
                 Spacer(minLength: 8)
@@ -98,10 +98,10 @@ struct HubView: View {
             HStack(spacing: 10) {
                 Image(systemName: "doc.badge.key")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(SkyMood.day.textSecondary)
+                    .foregroundStyle(SceneKind.day.textSecondary)
                 Text(t("hub.pairing"))
                     .font(.system(size: 13))
-                    .foregroundStyle(SkyMood.day.textSecondary)
+                    .foregroundStyle(SceneKind.day.textSecondary)
                 Spacer()
                 Text(model.pairingExists ? t("hub.pairingReady") : t("hub.pairingMissing"))
                     .font(.system(size: 13, weight: .semibold))
@@ -172,7 +172,7 @@ struct HubView: View {
                 Text(t("hub.repo"))
                     .font(.system(size: 12, weight: .medium))
             }
-            .foregroundStyle(SkyMood.day.textSecondary)
+            .foregroundStyle(SceneKind.day.textSecondary)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(Color.white.opacity(0.10), in: Capsule())

@@ -59,7 +59,12 @@ struct AppsView: View {
                 }
             }
         }
-        .background(Color.black.opacity(0.38).ignoresSafeArea())
+        .background {
+            ZStack {
+                SkyBackground(kind: .control)
+                Color.black.opacity(SceneKind.control.veil).ignoresSafeArea()
+            }
+        }
         .searchable(text: $query, prompt: "搜索应用或 BundleID")
         .navigationTitle("应用")
         .navigationBarTitleDisplayMode(.inline)
@@ -224,7 +229,7 @@ struct AppsView: View {
                 }
             }
             .padding(12)
-            .background(Theme.card)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(Theme.stroke, lineWidth: 1)
