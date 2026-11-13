@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct SigningView: View {
     @EnvironmentObject var model: AppModel
@@ -26,6 +27,7 @@ struct SigningView: View {
                     identityCard
                     matchCard
                     exportCard
+                    cloudCard
                     helpCard
                 }
                 .padding(.horizontal, 16)
@@ -155,6 +157,24 @@ struct SigningView: View {
                          prominent: true,
                          disabled: model.profileRawData == nil && model.identityP12Data == nil) {
                 model.exportSigningAssets()
+            }
+        }
+    }
+
+    private var cloudCard: some View {
+        Card(title: "Apple ID 云签名", systemImage: "cloud") {
+            Text("用云端 Mac 真机登录 Apple 开发者门户，不需要本地伪造设备信息：证书、描述文件、重签 IPA 全在流水线里完成，签完直接下载。")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("仓库 Secrets 需要配：APPLE_ID、APPLE_PASSWORD（App 专用密码）、CERT_PASSWORD；可选 FASTLANE_SESSION（双重认证会话）、TEAM_ID。")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ActionButton(title: "打开云签名流水线", systemImage: "arrow.up.right.square", prominent: true) {
+                if let url = URL(string: "https://github.com/hjm98-rgb/JIT-RPOQ/actions/workflows/sign.yml") {
+                    UIApplication.shared.open(url)
+                }
             }
         }
     }
