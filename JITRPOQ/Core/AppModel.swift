@@ -315,7 +315,7 @@ final class AppModel: ObservableObject {
         dismissedUpdateVersion = signingVersion
     }
 
-    static func readCopy(at url: URL) throws -> Data {
+    nonisolated static func readCopy(at url: URL) throws -> Data {
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
         return try Data(contentsOf: url)
