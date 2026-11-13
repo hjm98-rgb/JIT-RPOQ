@@ -7,6 +7,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject var model: AppModel
+    @Environment(\.scenePhase) private var scenePhase
     @State private var tab: Tab = .home
 
     enum Tab: Hashable {
@@ -30,6 +31,16 @@ struct RootView: View {
             LogView()
                 .tabItem { Label("日志", systemImage: "text.alignleft") }
                 .tag(Tab.logs)
+        }
+        .sheet(item: $model.availableUpdate) { update in
+            UpdatePromptView(update: update) {
+                model.installUpdate()
+            } onLater: {
+                model.postponeUpdate()
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.checkForUpdates() }
         }
         .tint(Theme.accent)
         .preferredColorScheme(.dark)

@@ -25,6 +25,7 @@ struct HomeView: View {
                     quickActions
                     automationCard
                     tipsCard
+                    updateCard
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 28)
@@ -330,6 +331,32 @@ struct HomeView: View {
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(Theme.textSecondary)
                 .textSelection(.enabled)
+        }
+    }
+
+    private var updateCard: some View {
+        Card(title: "版本与更新", systemImage: "arrow.triangle.2.circlepath") {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("当前版本 v\(model.currentVersion)")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(model.checkingUpdate ? "正在检查…" : (model.availableUpdate == nil ? "点右侧检查是否有新版本" : "发现新版本 v\(model.availableUpdate?.version ?? "")"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(model.availableUpdate == nil ? Theme.textSecondary : Theme.green)
+                }
+                Spacer()
+                if model.availableUpdate != nil {
+                    Button("立即更新") { model.installUpdate() }
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                } else {
+                    Button("检查更新") { model.checkForUpdates(force: true) }
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                        .disabled(model.checkingUpdate)
+                }
+            }
         }
     }
 

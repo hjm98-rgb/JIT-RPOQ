@@ -52,6 +52,10 @@ final class AppModel: ObservableObject {
     }
 
     @Published var sessionBundle: String?
+    @Published var availableUpdate: AppUpdate?
+    @Published var checkingUpdate = false
+    @Published var currentVersion = UpdateChecker.currentVersion
+    private var dismissedUpdateVersion: String?
     @Published var homeRequest = UUID()
     @Published var batchRunning = false
     @Published var batchTotal = 0
@@ -72,6 +76,7 @@ final class AppModel: ObservableObject {
             Task { @MainActor in self?.append(line, error: false) }
         }
         loadCachedIcons()
+        checkForUpdates()
         refreshPairingState()
         probeVPN()
         startVPNMonitor()
@@ -163,6 +168,47 @@ final class AppModel: ObservableObject {
 
     /// 把剪贴板里的配对 plist 文本存成文件。
     /// iOS 27 本机配对完成后：配对文件已在沙盒里，直接校验 + 生效。
+    // MARK: - 更新
+
+    func checkForUpdates(force: Bool = false) {
+        guard !checkingUpdate else { return }
+        checkingUpdate = true
+        Task.detached(priority: .utility) {
+            defer { Task { @MainActor in self.checkingUpdate = false } }
+            do {
+                let update = try await UpdateChecker.fetch()
+                await MainActor.run {
+                    if let update {
+                        if update.version != self.dismissedUpdateVersion || force {
+                            self.availableUpdate = update
+                            self.append("发现新版本 v\(update.version)（当前 v\(UpdateChecker.currentVersion)）")
+                        }
+                    } else if force {
+                        self.toast = "已是最新版本 v\(UpdateChecker.currentVersion)"
+                        self.append("检查更新：已是最新版本")
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    if force { self.lastError = "检查更新失败：\(error.localizedDescription)" }
+                }
+            }
+        }
+    }
+
+    func installUpdate() {
+        guard let update = availableUpdate else { return }
+        append("打开无线安装协议：v\(update.version)")
+        _ = UpdateChecker.install(update)
+        availableUpdate = nil
+        dismissedUpdateVersion = update.version
+    }
+
+    func postponeUpdate() {
+        dismissedUpdateVersion = availableUpdate?.version
+        availableUpdate = nil
+    }
+
     func applyGeneratedPairing() {
         do {
             _ = try JITEngine.shared.validatePairingFile()
