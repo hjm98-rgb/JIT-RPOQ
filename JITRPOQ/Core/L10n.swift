@@ -1,0 +1,176 @@
+//
+//  L10n.swift
+//  JIT RPOQ
+//
+//  轻量双语表：新增界面全部走这里，切换语言立即生效。
+//
+
+import Foundation
+import SwiftUI
+
+enum AppLanguage: String, CaseIterable, Identifiable {
+    case zh = "zh"
+    case en = "en"
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .zh: return "中文"
+        case .en: return "English"
+        }
+    }
+}
+
+enum L10n {
+    static func t(_ key: String, _ lang: String) -> String {
+        let table = lang == AppLanguage.en.rawValue ? en : zh
+        return table[key] ?? zh[key] ?? key
+    }
+
+    private static let zh: [String: String] = [
+        "hub.wordmark": "JIT RPOQ",
+        "hub.headline": "天空之下",
+        "hub.subtitle": "配对、隧道、JIT 全部在这里",
+        "hub.hub": "总库",
+        "hub.hubHint": "点击进入 JIT 实验室",
+        "hub.vpnOn": "VPN 已开启",
+        "hub.vpnOff": "VPN 未开启",
+        "hub.vpnOnDetail": "LocalDevVPN 回环已连接",
+        "hub.vpnOffDetail": "需要先连上 LocalDevVPN 才能连接设备",
+        "hub.enableVPN": "去开启",
+        "hub.pairing": "配对文件",
+        "hub.pairingReady": "已导入",
+        "hub.pairingMissing": "未导入",
+        "hub.repo": "作者仓库",
+        "hub.settings": "设置",
+        "lab.title": "JIT 实验室",
+        "lab.subtitle": "向下穿越云层，选择一个分区",
+        "lab.apps": "应用与 JIT",
+        "lab.appsDetail": "检测带调试权限的应用，点一下即开 JIT",
+        "lab.pairing": "配对文件",
+        "lab.pairingDetail": "导入经典或 RPP 配对文件，查看当前状态",
+        "lab.generator": "本机配对",
+        "lab.generatorDetail": "iOS 27 无需电脑，在设备上直接生成配对文件",
+        "lab.scripts": "脚本",
+        "lab.scriptsDetail": "内置与自建 JIT 脚本，可编辑、可导入",
+        "lab.logs": "日志",
+        "lab.logsDetail": "隧道、附加、脚本每一步的运行记录",
+        "lab.repo": "前往作者仓库",
+        "lab.repoDetail": "在浏览器中打开 GitHub 仓库",
+        "lab.back": "返回天空",
+        "apps.title": "应用与 JIT",
+        "apps.search": "搜索应用名或 Bundle ID",
+        "apps.filterJIT": "可开 JIT",
+        "apps.filterAll": "全部",
+        "apps.filterFav": "收藏",
+        "apps.loading": "正在读取设备上的应用…",
+        "apps.empty": "没有找到带 JIT 权限的应用",
+        "apps.emptyDetail": "只有签名时保留 get-task-allow 的应用才会出现在这里",
+        "apps.enable": "开启 JIT",
+        "apps.refresh": "重新读取",
+        "pairing.title": "配对文件",
+        "pairing.ready": "配对文件有效",
+        "pairing.missing": "还没有配对文件",
+        "pairing.import": "导入配对文件",
+        "pairing.kind": "类型",
+        "pairing.udid": "设备编号",
+        "pairing.host": "证书链",
+        "scripts.title": "脚本",
+        "logs.title": "日志",
+        "logs.empty": "暂无日志",
+        "settings.title": "设置",
+        "settings.language": "语言",
+        "settings.languageDetail": "切换后立即生效",
+        "settings.sky": "天空动画",
+        "settings.skyDetail": "关闭后天空静止，省电一些",
+        "settings.vpnAuto": "自动检测 VPN",
+        "settings.vpnAutoDetail": "回到前台时自动重新探测",
+        "settings.cache": "清理图标缓存",
+        "settings.cacheDetail": "下次读取应用时重新拉取图标",
+        "settings.cacheDone": "图标缓存已清理",
+        "settings.about": "关于",
+        "settings.version": "版本",
+        "settings.license": "许可证",
+        "settings.repo": "作者仓库",
+        "settings.repoDetail": "自动调用系统浏览器打开",
+        "common.back": "返回",
+        "common.close": "关闭",
+        "common.retry": "重新检测",
+        "common.done": "完成",
+        "common.unknown": "未知",
+        "common.repo": "GitHub 仓库",
+    ]
+
+    private static let en: [String: String] = [
+        "hub.wordmark": "JIT RPOQ",
+        "hub.headline": "Beneath the sky",
+        "hub.subtitle": "Pairing, tunnel and JIT in one place",
+        "hub.hub": "Vault",
+        "hub.hubHint": "Tap to enter the JIT Lab",
+        "hub.vpnOn": "VPN connected",
+        "hub.vpnOff": "VPN not connected",
+        "hub.vpnOnDetail": "LocalDevVPN loopback is reachable",
+        "hub.vpnOffDetail": "Connect LocalDevVPN before talking to the device",
+        "hub.enableVPN": "Turn on",
+        "hub.pairing": "Pairing file",
+        "hub.pairingReady": "Imported",
+        "hub.pairingMissing": "Missing",
+        "hub.repo": "Author's repo",
+        "hub.settings": "Settings",
+        "lab.title": "JIT Lab",
+        "lab.subtitle": "Descend through the clouds and pick a section",
+        "lab.apps": "Apps & JIT",
+        "lab.appsDetail": "List debuggable apps, one tap to enable JIT",
+        "lab.pairing": "Pairing file",
+        "lab.pairingDetail": "Import classic or RPP pairing files",
+        "lab.generator": "On-device pairing",
+        "lab.generatorDetail": "iOS 27 only — generate a pairing file without a computer",
+        "lab.scripts": "Scripts",
+        "lab.scriptsDetail": "Bundled and custom JIT scripts",
+        "lab.logs": "Logs",
+        "lab.logsDetail": "Every tunnel, attach and script step",
+        "lab.repo": "Open the author's repo",
+        "lab.repoDetail": "Opens GitHub in your browser",
+        "lab.back": "Back to the sky",
+        "apps.title": "Apps & JIT",
+        "apps.search": "Search name or bundle ID",
+        "apps.filterJIT": "JIT ready",
+        "apps.filterAll": "All",
+        "apps.filterFav": "Favourites",
+        "apps.loading": "Reading apps from the device…",
+        "apps.empty": "No app with JIT permission found",
+        "apps.emptyDetail": "Only apps signed with get-task-allow show up here",
+        "apps.enable": "Enable JIT",
+        "apps.refresh": "Refresh",
+        "pairing.title": "Pairing file",
+        "pairing.ready": "Pairing file is valid",
+        "pairing.missing": "No pairing file yet",
+        "pairing.import": "Import pairing file",
+        "pairing.kind": "Type",
+        "pairing.udid": "Device ID",
+        "pairing.host": "Certificate chain",
+        "scripts.title": "Scripts",
+        "logs.title": "Logs",
+        "logs.empty": "No logs yet",
+        "settings.title": "Settings",
+        "settings.language": "Language",
+        "settings.languageDetail": "Applies immediately",
+        "settings.sky": "Sky animation",
+        "settings.skyDetail": "Turn off to freeze the sky and save power",
+        "settings.vpnAuto": "Auto-detect VPN",
+        "settings.vpnAutoDetail": "Re-probe when the app becomes active",
+        "settings.cache": "Clear icon cache",
+        "settings.cacheDetail": "Icons are fetched again next refresh",
+        "settings.cacheDone": "Icon cache cleared",
+        "settings.about": "About",
+        "settings.version": "Version",
+        "settings.license": "License",
+        "settings.repo": "Author's repo",
+        "settings.repoDetail": "Opens in the system browser",
+        "common.back": "Back",
+        "common.close": "Close",
+        "common.retry": "Probe again",
+        "common.done": "Done",
+        "common.unknown": "Unknown",
+        "common.repo": "GitHub",
+    ]
+}

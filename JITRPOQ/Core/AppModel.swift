@@ -51,6 +51,13 @@ final class AppModel: ObservableObject {
         didSet { UserDefaults.standard.set(Array(favourites), forKey: "favourites") }
     }
 
+    @Published var language: String {
+        didSet { UserDefaults.standard.set(language, forKey: "language") }
+    }
+    @Published var skyAnimation: Bool {
+        didSet { UserDefaults.standard.set(skyAnimation, forKey: "skyAnimation") }
+    }
+
     @Published var sessionBundle: String?
     @Published var homeRequest = UUID()
     @Published var batchRunning = false
@@ -68,6 +75,8 @@ final class AppModel: ObservableObject {
         useIOS26Script = UserDefaults.standard.object(forKey: "useIOS26Script") as? Bool ?? true
         lastBundleID = UserDefaults.standard.string(forKey: "lastBundleID")
         favourites = Set(UserDefaults.standard.stringArray(forKey: "favourites") ?? [])
+        language = UserDefaults.standard.string(forKey: "language") ?? AppLanguage.zh.rawValue
+        skyAnimation = UserDefaults.standard.object(forKey: "skyAnimation") as? Bool ?? true
         JITEngine.shared.setLogSink { [weak self] line in
             Task { @MainActor in self?.append(line, error: false) }
         }
@@ -95,6 +104,23 @@ final class AppModel: ObservableObject {
     }
 
     func clearLogs() { logs.removeAll() }
+
+    /// 打开作者仓库（系统浏览器）
+    func openRepository() {
+        guard let url = URL(string: "https://github.com/hjm98-rgb/JIT-RPOQ") else { return }
+        UIApplication.shared.open(url)
+    }
+
+    /// 清空图标缓存
+    func clearIconCache() {
+        let dir = iconCacheDirectory()
+        if let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
+            for file in files { try? FileManager.default.removeItem(at: file) }
+        }
+        icons = [:]
+        toast = L10n.t("settings.cacheDone", language)
+        append("图标缓存已清理")
+    }
 
     private func fail(_ error: Error) {
         lastError = error.localizedDescription

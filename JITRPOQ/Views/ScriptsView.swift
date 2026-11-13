@@ -28,102 +28,102 @@ struct ScriptsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 14) {
-                    Card(title: "内置脚本", systemImage: "curlybraces") {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("jit26.js")
-                                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+        
+        ScrollView {
+            VStack(spacing: 14) {
+                Card(title: "内置脚本", systemImage: "curlybraces") {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("jit26.js")
+                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(Theme.textPrimary)
+                            Text("iOS 26 JIT 页协议 · brk #0xf00d")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                        Spacer()
+                        StatusPill(text: "就绪", ok: true)
+                    }
+                    HStack(spacing: 10) {
+                        ActionButton(title: "用脚本开 JIT", systemImage: "play.fill", prominent: true) {
+                            model.runScriptOnLastApp()
+                        }
+                        ActionButton(title: previewBundled ? "收起" : "查看", systemImage: "eye") {
+                            previewBundled.toggle()
+                        }
+                    }
+                    if previewBundled {
+                        Text(AppModel.bundledScript)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(Theme.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+                            .background(Theme.cardAlt)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+
+                Card(title: "自定义脚本", systemImage: "folder") {
+                    if customScripts.isEmpty {
+                        Text("还没有脚本。可以从文件导入 .js，脚本里可用 log / send_command / prepare_memory_region / get_pid。")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.textSecondary)
+                    } else {
+                        ForEach(customScripts, id: \.self) { name in
+                            HStack(spacing: 10) {
+                                Image(systemName: "doc.text")
+                                    .foregroundStyle(Theme.accent)
+                                Text(name)
+                                    .font(.system(size: 13, design: .monospaced))
                                     .foregroundStyle(Theme.textPrimary)
-                                Text("iOS 26 JIT 页协议 · brk #0xf00d")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(Theme.textSecondary)
-                            }
-                            Spacer()
-                            StatusPill(text: "就绪", ok: true)
-                        }
-                        HStack(spacing: 10) {
-                            ActionButton(title: "用脚本开 JIT", systemImage: "play.fill", prominent: true) {
-                                model.runScriptOnLastApp()
-                            }
-                            ActionButton(title: previewBundled ? "收起" : "查看", systemImage: "eye") {
-                                previewBundled.toggle()
-                            }
-                        }
-                        if previewBundled {
-                            Text(AppModel.bundledScript)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(Theme.textSecondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(10)
-                                .background(Theme.cardAlt)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                        }
-                    }
-
-                    Card(title: "自定义脚本", systemImage: "folder") {
-                        if customScripts.isEmpty {
-                            Text("还没有脚本。可以从文件导入 .js，脚本里可用 log / send_command / prepare_memory_region / get_pid。")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Theme.textSecondary)
-                        } else {
-                            ForEach(customScripts, id: \.self) { name in
-                                HStack(spacing: 10) {
-                                    Image(systemName: "doc.text")
+                                Spacer()
+                                Button {
+                                    run(name)
+                                } label: {
+                                    Image(systemName: "play.circle.fill")
                                         .foregroundStyle(Theme.accent)
-                                    Text(name)
-                                        .font(.system(size: 13, design: .monospaced))
-                                        .foregroundStyle(Theme.textPrimary)
-                                    Spacer()
-                                    Button {
-                                        run(name)
-                                    } label: {
-                                        Image(systemName: "play.circle.fill")
-                                            .foregroundStyle(Theme.accent)
-                                    }
-                                    .buttonStyle(.plain)
-                                    Button {
-                                        delete(name)
-                                    } label: {
-                                        Image(systemName: "trash")
-                                            .foregroundStyle(Theme.textSecondary)
-                                    }
-                                    .buttonStyle(.plain)
                                 }
-                                .padding(.vertical, 4)
+                                .buttonStyle(.plain)
+                                Button {
+                                    delete(name)
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .foregroundStyle(Theme.textSecondary)
+                                }
+                                .buttonStyle(.plain)
                             }
-                        }
-                        HStack(spacing: 10) {
-                            ActionButton(title: "导入脚本", systemImage: "square.and.arrow.down", prominent: true) {
-                                showImporter = true
-                            }
-                            ActionButton(title: "新建脚本", systemImage: "plus") {
-                                draftName = "custom-\(Int(Date().timeIntervalSince1970)).js"
-                                draft = "// JIT RPOQ 脚本\nlog(\"hello\");\n"
-                                showEditor = true
-                            }
+                            .padding(.vertical, 4)
                         }
                     }
-
-                    Card(title: "脚本接口", systemImage: "terminal") {
-                        VStack(alignment: .leading, spacing: 6) {
-                            api("log(text)", "输出到日志")
-                            api("send_command(cmd)", "发送 debugserver 命令，返回响应")
-                            api("prepare_memory_region(addr, size)", "把内存页标记为可执行")
-                            api("get_pid()", "当前附加进程的 PID")
-                            api("sleep_ms(n)", "阻塞等待")
+                    HStack(spacing: 10) {
+                        ActionButton(title: "导入脚本", systemImage: "square.and.arrow.down", prominent: true) {
+                            showImporter = true
+                        }
+                        ActionButton(title: "新建脚本", systemImage: "plus") {
+                            draftName = "custom-\(Int(Date().timeIntervalSince1970)).js"
+                            draft = "// JIT RPOQ 脚本\nlog(\"hello\");\n"
+                            showEditor = true
                         }
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 24)
+
+                Card(title: "脚本接口", systemImage: "terminal") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        api("log(text)", "输出到日志")
+                        api("send_command(cmd)", "发送 debugserver 命令，返回响应")
+                        api("prepare_memory_region(addr, size)", "把内存页标记为可执行")
+                        api("get_pid()", "当前附加进程的 PID")
+                        api("sleep_ms(n)", "阻塞等待")
+                    }
+                }
             }
-            .background(Theme.background.ignoresSafeArea())
-            .navigationTitle("脚本")
-            .navigationBarTitleDisplayMode(.inline)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 24)
         }
+        .background(Color.black.opacity(0.38).ignoresSafeArea())
+        .navigationTitle("脚本")
+        .navigationBarTitleDisplayMode(.inline)
+    
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [UTType(filenameExtension: "js") ?? .data, .data], allowsMultipleSelection: true) { result in
             switch result {
             case .success(let urls):

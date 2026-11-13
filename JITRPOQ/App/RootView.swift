@@ -2,43 +2,64 @@
 //  RootView.swift
 //  JIT RPOQ
 //
+//  新版外壳：天空 → 总库 →（急速下坠）→ JIT 实验室。
+//
 
 import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject var model: AppModel
-    @State private var tab: Tab = .home
     @Environment(\.scenePhase) private var scenePhase
 
-    enum Tab: Hashable {
-        case home, apps, scripts, logs
+    @State private var stage: Stage = .hub
+    @State private var fall: Double = 0
+    @State private var showSettings = false
+    @State private var isFalling = false
+
+    enum Stage {
+        case hub
+        case lab
+    }
+
+    private var mood: SkyMood {
+        stage == .hub ? .day : .dusk
     }
 
     var body: some View {
-        TabView(selection: $tab) {
-            HomeView()
-                .tabItem { Label("主页", systemImage: "bolt.fill") }
-                .tag(Tab.home)
+        ZStack {
+            SkyBackground(mood: mood, animated: model.skyAnimation, fall: fall)
 
-            AppsView()
-                .tabItem { Label("应用", systemImage: "square.grid.2x2") }
-                .tag(Tab.apps)
+            Color.black.opacity(stage == .hub ? 0.08 : 0.16)
+                .ignoresSafeArea()
 
-            ScriptsView()
-                .tabItem { Label("脚本", systemImage: "curlybraces") }
-                .tag(Tab.scripts)
-
-            LogView()
-                .tabItem { Label("日志", systemImage: "text.alignleft") }
-                .tag(Tab.logs)
+            Group {
+                if stage == .hub {
+                    HubView(
+                        onEnterLab: enterLab,
+                        onSettings: { showSettings = true },
+                        onRepo: { model.openRepository() }
+                    )
+                    .transition(.opacity)
+                } else {
+                    JITLabView(
+                        onBack: leaveLab,
+                        onSettings: { showSettings = true },
+                        onRepo: { model.openRepository() }
+                    )
+                    .transition(.opacity)
+                }
+            }
         }
-        .tint(Theme.accent)
         .preferredColorScheme(.dark)
-        .alert("出错了", isPresented: Binding(
+        .fullScreenCover(isPresented: $showSettings) {
+            SettingsView(onClose: { showSettings = false })
+                .environmentObject(model)
+        }
+        .alert(alertTitle, isPresented: Binding(
             get: { model.lastError != nil },
             set: { if !$0 { model.lastError = nil } }
         )) {
-            Button("知道了", role: .cancel) { model.lastError = nil }
+            Button(alertOK, role: .cancel) { model.lastError = nil }
         } message: {
             Text(model.lastError ?? "")
         }
@@ -46,13 +67,12 @@ struct RootView: View {
             if let toast = model.toast {
                 Text(toast)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                    .padding(.horizontal, 16)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 18)
                     .padding(.vertical, 10)
-                    .background(Theme.cardAlt)
-                    .overlay(Capsule().stroke(Theme.accent.opacity(0.4), lineWidth: 1))
-                    .clipShape(Capsule())
-                    .padding(.bottom, 72)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(Capsule().stroke(Color.white.opacity(0.24), lineWidth: 0.8))
+                    .padding(.bottom, 28)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
                     .task(id: toast) {
                         try? await Task.sleep(nanoseconds: 2_200_000_000)
@@ -61,13 +81,48 @@ struct RootView: View {
             }
         }
         .onChange(of: model.homeRequest) { _, _ in
-            tab = .home
+            withAnimation(.easeOut(duration: 0.3)) { stage = .hub }
         }
         .onChange(of: model.apps.count) { _, _ in
             model.consumePendingAuto()
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.probeVPN() }
+        }
+    }
+
+    private var alertTitle: String {
+        model.language == "en" ? "Something went wrong" : "出错了"
+    }
+
+    private var alertOK: String {
+        model.language == "en" ? "OK" : "知道了"
+    }
+
+    /// 总库 → 天空急速下坠 → 实验室
+    private func enterLab() {
+        guard !isFalling else { return }
+        isFalling = true
+        fall = 0
+        withAnimation(.easeIn(duration: 0.95)) {
+            fall = 1
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.02) {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                stage = .lab
+                fall = 0
+            }
+            withAnimation(.easeOut(duration: 0.45)) {
+                isFalling = false
+            }
+        }
+    }
+
+    private func leaveLab() {
+        withAnimation(.easeOut(duration: 0.35)) {
+            stage = .hub
         }
     }
 }
