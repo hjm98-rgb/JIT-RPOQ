@@ -133,9 +133,12 @@ final class AppModel: ObservableObject {
 
             let destination = JITEngine.shared.pairingFileURL()
             try data.write(to: destination, options: .atomic)
-            _ = try JITEngine.shared.validatePairingFile(at: destination)
 
             let detected = kind ?? Self.detectKind(at: destination)
+            if detected == .classic {
+                throw JITEngineError.pairingInvalid("这是经典配对记录（只有 X.509 证书链），iOS 26 的隧道只认 RPP 配对文件（必须含 public_key / private_key / identifier）。请用「一键生成配对文件」或导出 RPP 格式的文件。")
+            }
+            _ = try JITEngine.shared.validatePairingFile(at: destination)
             UserDefaults.standard.set(detected.rawValue, forKey: "pairingKind")
             refreshPairingState()
             pairingKind = detected
@@ -152,13 +155,13 @@ final class AppModel: ObservableObject {
               let dict = object as? [String: Any] else {
             return .rpp
         }
-        // 带完整证书链 + UDID 的，是 idevicepair / 爱思 那类经典配对记录；
-        // iLoader 这类工具导出的 .mobiledevicepair 通常只有证书链没有 UDID，
-        // 供 iOS 26 的 RPP 隧道使用，归为 RPP。
-        guard dict["HostCertificate"] != nil, dict["DeviceCertificate"] != nil else {
+        // 判定依据只有一个：有没有 RPP 的 Ed25519 钥匙对。
+        // iOS 26 的隧道（tunnel_create_rppairing）只认 RPP 文件，
+        // 纯 X.509 证书链的经典配对记录即使有 UDID 也喂不进去。
+        if dict["public_key"] != nil, dict["private_key"] != nil {
             return .rpp
         }
-        return dict["UDID"] != nil ? .classic : .rpp
+        return .classic
     }
 
     /// iOS 27 本机配对完成后：配对文件已在沙盒里，直接校验 + 生效。
