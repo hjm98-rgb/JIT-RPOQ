@@ -161,10 +161,13 @@ final class AppModel: ObservableObject {
               let dict = object as? [String: Any] else {
             return .rpp
         }
-        if dict["HostCertificate"] != nil, dict["DeviceCertificate"] != nil {
-            return .classic
+        // 带完整证书链 + UDID 的，是 idevicepair / 爱思 那类经典配对记录；
+        // iLoader 这类工具导出的 .mobiledevicepair 通常只有证书链没有 UDID，
+        // 供 iOS 26 的 RPP 隧道使用，归为 RPP。
+        guard dict["HostCertificate"] != nil, dict["DeviceCertificate"] != nil else {
+            return .rpp
         }
-        return .rpp
+        return dict["UDID"] != nil ? .classic : .rpp
     }
 
     /// 把剪贴板里的配对 plist 文本存成文件。
