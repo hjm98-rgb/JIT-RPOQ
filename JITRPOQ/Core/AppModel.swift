@@ -53,6 +53,11 @@ final class AppModel: ObservableObject {
 
     @Published var sessionBundle: String?
     @Published var availableUpdate: AppUpdate?
+    @Published var showUpdateSigning = false
+    @Published var signingBusy = false
+    @Published var signingDone = false
+    @Published var signingStatus = "等待开始"
+    @Published var signingVersion = ""
     @Published var checkingUpdate = false
     @Published var currentVersion = UpdateChecker.currentVersion
     private var dismissedUpdateVersion: String?
@@ -194,6 +199,107 @@ final class AppModel: ObservableObject {
                 }
             }
         }
+    }
+
+    /// 点「更新」后进入证书配置：先收材料，再让云端签名，最后走无线安装。
+    func beginUpdateSigning() {
+        signingVersion = availableUpdate?.version ?? UpdateChecker.currentVersion
+        signingDone = false
+        signingBusy = false
+        signingStatus = "导入签名材料后点确认"
+        availableUpdate = nil
+        showUpdateSigning = true
+    }
+
+    func submitUpdateSigning(mode: SigningMode, p12URL: URL?, profileURL: URL?, password: String, pat: String) {
+        guard !signingBusy else { return }
+        let token = pat.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else {
+            lastError = "需要 GitHub PAT（repo + workflow 权限）来触发云端签名"
+            return
+        }
+        guard let p12URL else {
+            lastError = "先导入 p12 证书"
+            return
+        }
+        guard !password.isEmpty else {
+            lastError = "填写 p12 密码"
+            return
+        }
+
+        signingBusy = true
+        signingDone = false
+        signingStatus = "读取签名材料…"
+        append("开始云端签名：v\(signingVersion)（\(mode.title)）")
+
+        let version = signingVersion
+        let bundleID = "com.rpoq.jitlauncher"
+
+        Task.detached(priority: .userInitiated) {
+            do {
+                let p12Data = try Self.readCopy(at: p12URL)
+                let profileData = try profileURL.flatMap { try Self.readCopy(at: $0) }
+
+                try await CloudSigner.setSecret(name: "P12_BASE64", value: p12Data.base64EncodedString(), token: token)
+                try await CloudSigner.setSecret(name: "P12_PASSWORD", value: password, token: token)
+                if let profileData {
+                    try await CloudSigner.setSecret(name: "PROFILE_BASE64", value: profileData.base64EncodedString(), token: token)
+                }
+                Keychain.set(token, for: "GITHUB_PAT")
+
+                await MainActor.run { self.signingStatus = "触发云端签名…" }
+                try await CloudSigner.dispatchSign(mode: mode == .appleID ? "appleid" : "cert",
+                                                  bundleID: bundleID,
+                                                  version: version,
+                                                  token: token)
+
+                await MainActor.run { self.signingStatus = "云端排队中…" }
+                for _ in 0..<90 {
+                    try await Task.sleep(nanoseconds: 10_000_000_000)
+                    if let run = try await CloudSigner.latestSignRun(token: token) {
+                        await MainActor.run {
+                            switch run.status {
+                            case "completed":
+                                let ok = run.conclusion == "success"
+                                self.signingDone = ok
+                                self.signingStatus = ok ? "签名完成，可以无线安装" : "签名失败：\(run.conclusion ?? "unknown")"
+                            case "queued":
+                                self.signingStatus = "云端排队中…"
+                            default:
+                                self.signingStatus = "正在签名…"
+                            }
+                        }
+                        if run.status == "completed" { break }
+                    }
+                }
+                await MainActor.run {
+                    self.signingBusy = false
+                    if self.signingDone { self.append("云端签名完成，已生成安装清单") }
+                }
+            } catch {
+                await MainActor.run {
+                    self.signingBusy = false
+                    self.signingStatus = "签名失败"
+                    self.fail(error)
+                }
+            }
+        }
+    }
+
+    /// 打开苹果无线安装协议，直接覆盖安装签名后的包。
+    func openOTAInstall() {
+        guard let url = URL(string: CloudSigner.otaInstallURL) else { return }
+        append("打开无线安装：v\(signingVersion)")
+        UIApplication.shared.open(url)
+        showUpdateSigning = false
+        signingDone = false
+        dismissedUpdateVersion = signingVersion
+    }
+
+    static func readCopy(at url: URL) throws -> Data {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        return try Data(contentsOf: url)
     }
 
     func installUpdate() {
