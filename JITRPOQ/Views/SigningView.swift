@@ -15,6 +15,12 @@ struct SigningView: View {
     @State private var showProfilePicker = false
     @State private var showP12Picker = false
     @State private var pendingP12: URL?
+    @State private var appleID = ""
+    @State private var applePassword = ""
+    @State private var certPassword = ""
+    @State private var pat = ""
+    @State private var teamID = ""
+    @State private var bundleID = "com.rpoq.jitlauncher"
     @State private var showPasswordPrompt = false
     @State private var password = ""
 
@@ -163,19 +169,79 @@ struct SigningView: View {
 
     private var cloudCard: some View {
         Card(title: "Apple ID 云签名", systemImage: "cloud") {
-            Text("用云端 Mac 真机登录 Apple 开发者门户，不需要本地伪造设备信息：证书、描述文件、重签 IPA 全在流水线里完成，签完直接下载。")
+            Text("用云端真实 Mac 登录 Apple 开发者门户（设备信息由 macOS 自身提供，不用伪造），自动申请开发证书和描述文件，重签 IPA，并把证书打包成 p12 导出。")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("仓库 Secrets 配：APPLE_ID、APPLE_PASSWORD（Apple ID 登录密码，只在云端 Mac 用一次）、CERT_PASSWORD（p12 导出口令）；建议再配 FASTLANE_SESSION 免验证码，可选 TEAM_ID。")
-                .font(.system(size: 11))
-                .foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            ActionButton(title: "打开云签名流水线", systemImage: "arrow.up.right.square", prominent: true) {
-                if let url = URL(string: "https://github.com/hjm98-rgb/JIT-RPOQ/actions/workflows/sign.yml") {
-                    UIApplication.shared.open(url)
+
+            field("Apple ID", text: $appleID, secure: false)
+            field("App 专用密码", text: $applePassword, secure: true)
+            field("证书导出密码（自定义）", text: $certPassword, secure: true)
+            field("GitHub PAT（repo + admin）", text: $pat, secure: true)
+            field("Team ID（可留空）", text: $teamID, secure: false)
+            field("Bundle ID", text: $bundleID, secure: false)
+
+            HStack(spacing: 8) {
+                StatusPill(text: model.cloudStatus, ok: model.cloudStatus.contains("完成"))
+                Spacer()
+                if model.cloudRunning {
+                    ProgressView().tint(Theme.accent)
                 }
             }
+
+            ActionButton(title: "登录并开始签名",
+                         systemImage: "person.badge.key.fill",
+                         prominent: true,
+                         disabled: model.cloudRunning) {
+                model.startCloudSign(appleID: appleID,
+                                     password: applePassword,
+                                     certPassword: certPassword,
+                                     pat: pat,
+                                     teamID: teamID,
+                                     bundleID: bundleID)
+            }
+
+            if let link = model.cloudRunURL, let url = URL(string: link) {
+                Button {
+                    UIApplication.shared.open(url)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.up.right.square")
+                        Text("打开发布页下载 IPA / 证书")
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .onAppear {
+            appleID = Keychain.get("APPLE_ID") ?? ""
+            pat = Keychain.get("GITHUB_PAT") ?? ""
+            certPassword = Keychain.get("CERT_PASSWORD") ?? ""
+        }
+    }
+
+    private func field(_ title: String, text: Binding<String>, secure: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Theme.textSecondary)
+            Group {
+                if secure {
+                    SecureField(title, text: text)
+                } else {
+                    TextField(title, text: text)
+                }
+            }
+            .font(.system(size: 13, design: .monospaced))
+            .foregroundStyle(Theme.textPrimary)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Theme.cardAlt)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
 

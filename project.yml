@@ -14,6 +14,11 @@ settings:
     CODE_SIGN_IDENTITY: ""
     ENABLE_BITCODE: "NO"
     ONLY_ACTIVE_ARCH: "NO"
+packages:
+  Sodium:
+    url: https://github.com/jedisct1/swift-sodium.git
+    from: 0.9.0
+
 targets:
   JITRPOQ:
     type: application
@@ -41,3 +46,4 @@ targets:
       - sdk: JavaScriptCore.framework
       - sdk: libz.tbd
       - sdk: libc++.tbd
+      - package: Sodium

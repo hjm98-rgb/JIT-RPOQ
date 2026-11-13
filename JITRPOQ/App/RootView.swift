@@ -57,10 +57,9 @@ struct RootView: View {
                     .clipShape(Capsule())
                     .padding(.bottom, 72)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
-                            withAnimation { model.toast = nil }
-                        }
+                    .task(id: toast) {
+                        try? await Task.sleep(nanoseconds: 2_200_000_000)
+                        withAnimation { model.toast = nil }
                     }
             }
         }

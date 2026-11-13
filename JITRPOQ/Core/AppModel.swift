@@ -59,6 +59,9 @@ final class AppModel: ObservableObject {
     @Published var identityCertDER: Data?
     @Published var identityP12Data: Data?
     @Published var identityMatchesProfile = false
+    @Published var cloudRunning = false
+    @Published var cloudStatus = "未开始"
+    @Published var cloudRunURL: String?
     @Published var batchRunning = false
     @Published var batchTotal = 0
     @Published var batchDone = 0
@@ -451,6 +454,71 @@ final class AppModel: ObservableObject {
             toast = "证书已导入"
         } catch {
             fail(error)
+        }
+    }
+
+    // MARK: - Apple ID 云签名
+
+    func startCloudSign(appleID: String, password: String, certPassword: String,
+                        pat: String, teamID: String, bundleID: String) {
+        guard !cloudRunning else { return }
+        let trimmedID = appleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedID.isEmpty, !password.isEmpty else {
+            lastError = "先填 Apple ID 和 App 专用密码"
+            return
+        }
+        guard !pat.isEmpty else {
+            lastError = "需要 GitHub PAT（repo + admin 权限），用来写入 Secrets 并触发流水线"
+            return
+        }
+
+        Keychain.set(trimmedID, for: "APPLE_ID")
+        Keychain.set(password, for: "APPLE_PASSWORD")
+        Keychain.set(pat, for: "GITHUB_PAT")
+        if !certPassword.isEmpty { Keychain.set(certPassword, for: "CERT_PASSWORD") }
+
+        cloudRunning = true
+        cloudStatus = "写入证书信息…"
+        append("云签名开始：\(trimmedID)")
+
+        Task.detached(priority: .userInitiated) {
+            do {
+                try await CloudSigner.setSecret(name: "APPLE_ID", value: trimmedID, token: pat)
+                try await CloudSigner.setSecret(name: "APPLE_PASSWORD", value: password, token: pat)
+                if !certPassword.isEmpty {
+                    try await CloudSigner.setSecret(name: "CERT_PASSWORD", value: certPassword, token: pat)
+                }
+                if !teamID.isEmpty {
+                    try await CloudSigner.setSecret(name: "TEAM_ID", value: teamID, token: pat)
+                }
+
+                await MainActor.run { self.cloudStatus = "触发云端签名…" }
+                try await CloudSigner.dispatch(bundleID: bundleID, teamID: teamID, token: pat)
+                await MainActor.run { self.cloudStatus = "云端排队中…" }
+
+                for _ in 0..<80 {
+                    try await Task.sleep(nanoseconds: 15_000_000_000)
+                    if let run = try await CloudSigner.latestRun(token: pat) {
+                        await MainActor.run {
+                            self.cloudRunURL = run.htmlURL
+                            if run.status == "completed" {
+                                let ok = run.conclusion == "success"
+                                self.cloudStatus = ok ? "签名完成，去下载" : "失败：\(run.conclusion ?? "unknown")"
+                            } else {
+                                self.cloudStatus = run.status == "queued" ? "排队中" : "正在签名"
+                            }
+                        }
+                        if run.status == "completed" { break }
+                    }
+                }
+                await MainActor.run { self.cloudRunning = false }
+            } catch {
+                await MainActor.run {
+                    self.cloudRunning = false
+                    self.cloudStatus = "失败"
+                    self.fail(error)
+                }
+            }
         }
     }
 
