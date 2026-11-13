@@ -167,7 +167,7 @@ struct SigningView: View {
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("仓库 Secrets 需要配：APPLE_ID、APPLE_PASSWORD（App 专用密码）、CERT_PASSWORD；可选 FASTLANE_SESSION（双重认证会话）、TEAM_ID。")
+            Text("仓库 Secrets 配：APPLE_ID、APPLE_PASSWORD（Apple ID 登录密码，只在云端 Mac 用一次）、CERT_PASSWORD（p12 导出口令）；建议再配 FASTLANE_SESSION 免验证码，可选 TEAM_ID。")
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
