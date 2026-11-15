@@ -11,44 +11,55 @@ import SwiftUI
 struct SpeedLines: View {
     var progress: Double
 
-    private let lineCount = 34
+    private struct Streak {
+        var angle: Double
+        var inner: Double
+        var outer: Double
+        var width: Double
+        var alpha: Double
+    }
 
     var body: some View {
         Canvas { context, size in
             guard progress > 0.12 else { return }
-            let strength = opacity(for: progress)
-            let center = CGPoint(x: size.width / 2, y: size.height / 2)
-            let maxRadius = hypot(size.width, size.height) * 0.75
-            var rng = SeededGenerator(seed: 20261115)
-
-            for index in 0..<lineCount {
-                let angle = Double(index) / Double(lineCount) * 2 * .pi + rng.next() * 0.12
-                let inner = maxRadius * (0.10 + rng.next() * 0.22)
-                let outer = maxRadius * (0.75 + rng.next() * 0.55) * (0.55 + progress * 0.75)
-                guard outer > inner else { continue }
-
-                let start = CGPoint(x: center.x + cos(angle) * inner,
-                                    y: center.y + sin(angle) * inner)
-                let end = CGPoint(x: center.x + cos(angle) * outer,
-                                  y: center.y + sin(angle) * outer)
-
+            let specs = streaks()
+            let midX = size.width / 2
+            let midY = size.height / 2
+            for spec in specs {
+                let startX = midX + CGFloat(cos(spec.angle)) * CGFloat(spec.inner)
+                let startY = midY + CGFloat(sin(spec.angle)) * CGFloat(spec.inner)
+                let endX = midX + CGFloat(cos(spec.angle)) * CGFloat(spec.outer)
+                let endY = midY + CGFloat(sin(spec.angle)) * CGFloat(spec.outer)
                 var path = Path()
-                path.move(to: start)
-                path.addLine(to: end)
-
-                let width = 0.5 + rng.next() * 1.4
-                context.stroke(
-                    path,
-                    with: .color(.white.opacity(strength * (0.25 + rng.next() * 0.55))),
-                    style: StrokeStyle(lineWidth: width, lineCap: .round)
-                )
+                path.move(to: CGPoint(x: startX, y: startY))
+                path.addLine(to: CGPoint(x: endX, y: endY))
+                let color = Color.white.opacity(spec.alpha)
+                context.stroke(path, with: .color(color), lineWidth: spec.width)
             }
         }
         .blendMode(.plusLighter)
         .allowsHitTesting(false)
     }
 
-    private func opacity(for progress: Double) -> Double {
+    private func streaks() -> [Streak] {
+        var rng = SeededGenerator(seed: 20261115)
+        let strength = strengthValue()
+        let count = 34
+        var result: [Streak] = []
+        result.reserveCapacity(count)
+        for index in 0..<count {
+            let angle: Double = Double(index) / Double(count) * 2 * .pi + rng.next() * 0.12
+            let inner: Double = 0.10 + rng.next() * 0.22
+            let spread: Double = 0.75 + rng.next() * 0.55
+            let factor: Double = 0.55 + progress * 0.75
+            let width: Double = 0.5 + rng.next() * 1.4
+            let alpha: Double = strength * (0.25 + rng.next() * 0.55)
+            result.append(Streak(angle: angle, inner: inner, outer: spread * factor, width: width, alpha: alpha))
+        }
+        return result
+    }
+
+    private func strengthValue() -> Double {
         if progress < 0.35 { return (progress - 0.12) / 0.23 * 0.5 }
         if progress < 0.78 { return 0.5 + (progress - 0.35) / 0.43 * 0.45 }
         return max(0, 1 - (progress - 0.78) / 0.22)
