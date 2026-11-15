@@ -213,7 +213,7 @@ struct JITLabView: View {
     private func travel(toGenerator: Bool) {
         guard !travelling, path.isEmpty else { return }
         travelling = true
-        pendingRoute = route
+        pendingRoute = nil
         fall = 0
         flash = 0
         SoundPlayer.shared.startFall()
