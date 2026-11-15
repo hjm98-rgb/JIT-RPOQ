@@ -114,15 +114,12 @@ struct PairingGeneratorView: View {
     }
 
     private var isIOS27: Bool {
-        DeviceCapability.supportsOnDevicePairing
+        (Int(systemVersion.split(separator: ".").first ?? "0") ?? 0) >= 27
     }
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                SkyBackground(kind: .cloudSea)
-                Color.black.opacity(SceneKind.cloudSea.veil).ignoresSafeArea()
-                ScrollView {
+            ScrollView {
                 VStack(spacing: 14) {
                     headerCard
                     stepsCard
@@ -131,13 +128,11 @@ struct PairingGeneratorView: View {
                         logCard
                     }
                 }
-                    .padding(16)
-                }
+                .padding(16)
             }
+            .background(Theme.background.ignoresSafeArea())
             .navigationTitle("一键生成配对文件")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("关闭") {
@@ -179,7 +174,7 @@ struct PairingGeneratorView: View {
 
             HStack(spacing: 8) {
                 StatusPill(text: "当前系统 iOS \(systemVersion)", ok: isIOS27)
-                StatusPill(text: DeviceCapability.pairingSupportSummary, ok: isIOS27)
+                StatusPill(text: isIOS27 ? "支持本机配对" : "仅 iOS 27 支持", ok: isIOS27)
             }
         }
         .padding(14)
@@ -284,7 +279,7 @@ struct PairingGeneratorView: View {
                         title: vm.running ? "配对中…" : (vm.finished ? "重新配对" : "开始配对"),
                         systemImage: "play.fill",
                         prominent: true,
-                        disabled: vm.running
+                        disabled: vm.running || !isIOS27
                     ) {
                         vm.start()
                     }
@@ -296,7 +291,7 @@ struct PairingGeneratorView: View {
                 }
 
                 if !isIOS27 {
-                    Text("当前系统是 iOS \(systemVersion)，未检测到本机配对能力。仍可点「开始配对」尝试，失败是系统本身不支持；iOS 26 请用电脑生成经典 / RPP 配对文件后导入。")
+                    Text("当前系统是 iOS \(systemVersion)，一键生成配对文件只在 iOS 27 及以上可用；iOS 26 请用电脑生成经典 / RPP 配对文件后导入。")
                         .font(.system(size: 11))
                         .foregroundStyle(Theme.red)
                         .fixedSize(horizontal: false, vertical: true)

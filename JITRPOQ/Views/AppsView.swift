@@ -29,73 +29,68 @@ struct AppsView: View {
     }
 
     var body: some View {
-        
-        VStack(spacing: 10) {
-            Picker("筛选", selection: $filter) {
-                ForEach(Filter.allCases, id: \.self) { item in
-                    Text(item.rawValue).tag(item)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-
-            if model.isLoadingApps {
-                ProgressView("正在读取设备上的应用…")
-                    .tint(Theme.accent)
-                    .foregroundStyle(Theme.textSecondary)
-                    .padding(.top, 40)
-                Spacer()
-            } else if model.apps.isEmpty {
-                emptyState
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 10) {
-                        ForEach(filtered) { app in
-                            row(app)
-                        }
+        NavigationStack {
+            VStack(spacing: 10) {
+                Picker("筛选", selection: $filter) {
+                    ForEach(Filter.allCases, id: \.self) { item in
+                        Text(item.rawValue).tag(item)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 24)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+
+                if model.isLoadingApps {
+                    ProgressView("正在读取设备上的应用…")
+                        .tint(Theme.accent)
+                        .foregroundStyle(Theme.textSecondary)
+                        .padding(.top, 40)
+                    Spacer()
+                } else if model.apps.isEmpty {
+                    emptyState
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 10) {
+                            ForEach(filtered) { app in
+                                row(app)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 24)
+                    }
                 }
             }
-        }
-        .background {
-            ZStack {
-                SkyBackground(kind: .control)
-                Color.black.opacity(SceneKind.control.veil).ignoresSafeArea()
-            }
-        }
-        .searchable(text: $query, prompt: "搜索应用或 BundleID")
-        .navigationTitle("应用")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button(isSelecting ? "取消" : "选择") {
-                    isSelecting.toggle()
-                    selection.removeAll()
+            .background(Theme.background.ignoresSafeArea())
+            .searchable(text: $query, prompt: "搜索应用或 BundleID")
+            .navigationTitle("应用")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(isSelecting ? "取消" : "选择") {
+                        isSelecting.toggle()
+                        selection.removeAll()
+                    }
+                    .foregroundStyle(Theme.accent)
+                    .disabled(model.apps.isEmpty || model.batchRunning)
                 }
-                .foregroundStyle(Theme.accent)
-                .disabled(model.apps.isEmpty || model.batchRunning)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    model.refreshApps()
-                } label: {
-                    Image(systemName: "arrow.clockwise").foregroundStyle(Theme.accent)
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        model.refreshApps()
+                    } label: {
+                        Image(systemName: "arrow.clockwise").foregroundStyle(Theme.accent)
+                    }
+                    .disabled(model.isLoadingApps || !model.pairingExists)
                 }
-                .disabled(model.isLoadingApps || !model.pairingExists)
+            }
+            .safeAreaInset(edge: .bottom) {
+                if isSelecting || model.batchRunning {
+                    selectionBar
+                }
+            }
+            .refreshable { model.refreshApps() }
+            .onAppear {
+                model.loadIconsIfNeeded()
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            if isSelecting || model.batchRunning {
-                selectionBar
-            }
-        }
-        .refreshable { model.refreshApps() }
-        .onAppear {
-            model.loadIconsIfNeeded()
-        }
-    
     }
 
     private var emptyState: some View {
@@ -229,7 +224,7 @@ struct AppsView: View {
                 }
             }
             .padding(12)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(Theme.card)
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(Theme.stroke, lineWidth: 1)

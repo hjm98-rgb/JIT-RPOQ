@@ -25,7 +25,7 @@ struct Card<Content: View>: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Theme.card)
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Theme.stroke, lineWidth: 1)
@@ -105,14 +105,14 @@ struct InfoRow: View {
 }
 
 enum Theme {
-    static let background = Color.clear
-    static let card = Color.white.opacity(0.10)
-    static let cardAlt = Color.white.opacity(0.16)
-    static let stroke = Color.white.opacity(0.18)
+    static let background = Color(red: 0.05, green: 0.06, blue: 0.09)
+    static let card = Color(red: 0.09, green: 0.10, blue: 0.14)
+    static let cardAlt = Color(red: 0.13, green: 0.14, blue: 0.19)
+    static let stroke = Color.white.opacity(0.08)
     static let accent = Color(red: 0.35, green: 0.95, blue: 0.75)
     static let accent2 = Color(red: 1.0, green: 0.72, blue: 0.30)
     static let textPrimary = Color.white.opacity(0.92)
-    static let textSecondary = Color.white.opacity(0.68)
+    static let textSecondary = Color.white.opacity(0.5)
     static let textTertiary = Color.white.opacity(0.35)
     static let green = Color(red: 0.35, green: 0.95, blue: 0.55)
     static let red = Color(red: 1.0, green: 0.42, blue: 0.42)
@@ -172,5 +172,72 @@ struct AppIconTile: View {
                 .foregroundStyle(Color.black.opacity(0.8))
         }
         .frame(width: size, height: size)
+    }
+}
+
+/// 自绘错误提示：替代系统 alert。
+/// 系统 alert 在页面切换、或绑定值被后台状态清空时，
+/// 会留下看不见的模态层，导致整屏无法点击。
+struct ErrorPrompt: View {
+    var title: String
+    var message: String
+    var okTitle: String
+    var onDismiss: () -> Void
+
+    @State private var appeared = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.45)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { dismiss() }
+
+            VStack(spacing: 14) {
+                Text(title)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Theme.textPrimary)
+
+                Text(message)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button(action: { dismiss() }) {
+                    Text(okTitle)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(Theme.cardAlt)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Theme.stroke, lineWidth: 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(22)
+            .frame(maxWidth: 330)
+            .background(Theme.card)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Theme.stroke, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .scaleEffect(appeared ? 1 : 0.94)
+            .opacity(appeared ? 1 : 0)
+            .padding(24)
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { appeared = true }
+        }
+    }
+
+    private func dismiss() {
+        withAnimation(.easeOut(duration: 0.18)) { appeared = false }
+        onDismiss()
     }
 }
