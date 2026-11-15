@@ -25,11 +25,12 @@ struct SpeedLines: View {
             let specs = streaks()
             let midX = size.width / 2
             let midY = size.height / 2
+            let radius = hypot(size.width, size.height) * 0.78
             for spec in specs {
-                let startX = midX + CGFloat(cos(spec.angle)) * CGFloat(spec.inner)
-                let startY = midY + CGFloat(sin(spec.angle)) * CGFloat(spec.inner)
-                let endX = midX + CGFloat(cos(spec.angle)) * CGFloat(spec.outer)
-                let endY = midY + CGFloat(sin(spec.angle)) * CGFloat(spec.outer)
+                let startX = midX + CGFloat(cos(spec.angle)) * CGFloat(spec.inner * Double(radius))
+                let startY = midY + CGFloat(sin(spec.angle)) * CGFloat(spec.inner * Double(radius))
+                let endX = midX + CGFloat(cos(spec.angle)) * CGFloat(spec.outer * Double(radius))
+                let endY = midY + CGFloat(sin(spec.angle)) * CGFloat(spec.outer * Double(radius))
                 var path = Path()
                 path.move(to: CGPoint(x: startX, y: startY))
                 path.addLine(to: CGPoint(x: endX, y: endY))
