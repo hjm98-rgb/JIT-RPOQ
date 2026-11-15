@@ -16,6 +16,9 @@ struct JITLabView: View {
 
     @State private var path: [LabRoute] = []
     @State private var showGenerator = false
+    @State private var fall: Double = 0
+    @State private var flash: Double = 0
+    @State private var travelling = false
 
     enum LabRoute: Hashable {
         case apps
@@ -45,6 +48,10 @@ struct JITLabView: View {
                     .padding(.top, 6)
                     .padding(.bottom, 34)
                 }
+                .opacity(1 - min(fall * 1.7, 1))
+                .scaleEffect(1 - min(fall, 1) * 0.05)
+
+                TravelOverlay(progress: fall, flash: flash)
             }
             .navigationDestination(for: LabRoute.self) { route in
                 switch route {
@@ -97,7 +104,9 @@ struct JITLabView: View {
     }
 
     private func sectionCard(_ route: LabRoute, icon: String, titleKey: String, detailKey: String) -> some View {
-        NavigationLink(value: route) {
+        Button {
+            travel(to: route)
+        } label: {
             VStack(alignment: .leading, spacing: 10) {
                 Image(systemName: icon)
                     .font(.system(size: 22, weight: .regular))
@@ -125,9 +134,38 @@ struct JITLabView: View {
         .buttonStyle(.plain)
     }
 
+    /// 每一个分区都用同一套「先悬停、再快速坠落、落地」的进入方式
+    private func travel(to route: LabRoute) {
+        guard !travelling, path.isEmpty else { return }
+        travelling = true
+        fall = 0
+        flash = 0
+        SoundPlayer.shared.startFall()
+
+        withAnimation(.timingCurve(0.58, 0.0, 0.88, 1.0, duration: 1.55)) {
+            fall = 1
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.16) {
+            SoundPlayer.shared.land()
+            withAnimation(.easeOut(duration: 0.10)) { flash = 0.72 }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.42) {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                path = [route]
+                fall = 0
+            }
+            withAnimation(.easeOut(duration: 0.30)) { flash = 0 }
+            travelling = false
+        }
+    }
+
     private var generatorCard: some View {
         Button {
-            showGenerator = true
+            travel(toGenerator: true)
         } label: {
             HStack(spacing: 14) {
                 Image(systemName: "wand.and.stars")
@@ -157,6 +195,29 @@ struct JITLabView: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    private func travel(toGenerator: Bool) {
+        guard !travelling, path.isEmpty else { return }
+        travelling = true
+        fall = 0
+        flash = 0
+        SoundPlayer.shared.startFall()
+        withAnimation(.timingCurve(0.58, 0.0, 0.88, 1.0, duration: 1.55)) { fall = 1 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.16) {
+            SoundPlayer.shared.land()
+            withAnimation(.easeOut(duration: 0.10)) { flash = 0.72 }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.42) {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                fall = 0
+                showGenerator = true
+            }
+            withAnimation(.easeOut(duration: 0.30)) { flash = 0 }
+            travelling = false
+        }
     }
 
     private var repoRow: some View {

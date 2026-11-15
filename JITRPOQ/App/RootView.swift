@@ -15,6 +15,8 @@ struct RootView: View {
     @State private var fall: Double = 0
     @State private var showSettings = false
     @State private var isFalling = false
+    @State private var flash: Double = 0
+    @State private var impactScale: CGFloat = 1.0
 
     enum Stage {
         case hub
@@ -49,6 +51,11 @@ struct RootView: View {
                     .transition(.opacity)
                 }
             }
+            .scaleEffect(impactScale)
+            .opacity(1 - min(fall * 1.7, 1))
+            .scaleEffect(1 - min(fall, 1) * 0.06)
+
+            TravelOverlay(progress: fall, flash: flash)
         }
         .preferredColorScheme(.dark)
         .fullScreenCover(isPresented: $showSettings) {
@@ -104,19 +111,31 @@ struct RootView: View {
         guard !isFalling else { return }
         isFalling = true
         fall = 0
-        withAnimation(.easeIn(duration: 0.95)) {
+        flash = 0
+        impactScale = 1.0
+        SoundPlayer.shared.startFall()
+
+        // 先慢后快：0.55 之前几乎悬停，之后加速俯冲
+        withAnimation(.timingCurve(0.58, 0.0, 0.88, 1.0, duration: 1.55)) {
             fall = 1
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.02) {
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.16) {
+            SoundPlayer.shared.land()
+            withAnimation(.easeOut(duration: 0.10)) { flash = 0.72 }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.42) {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
                 stage = .lab
                 fall = 0
+                impactScale = 1.0
             }
-            withAnimation(.easeOut(duration: 0.45)) {
-                isFalling = false
-            }
+            withAnimation(.easeOut(duration: 0.30)) { flash = 0 }
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.62)) { impactScale = 1.0 }
+            isFalling = false
         }
     }
 

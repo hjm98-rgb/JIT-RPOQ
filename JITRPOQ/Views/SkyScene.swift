@@ -142,11 +142,16 @@ struct SkyBackground: View {
 
                 ZStack {
                     baseImage(w: w, h: h, t: t)
+                    if kind == .descent || kind == .cloudSea {
+                        verticalCloudBands(w: w, h: h, t: t)
+                    }
                     if kind.indoor {
                         lightSweep(w: w, h: h, t: t)
                     } else if kind.usesCloudLayer {
                         cloudField(w: w, h: h, t: t)
                     }
+                    AmbientParticles(kind: kind, time: t)
+                        .frame(width: w, height: h)
                     colorGrade(w: w, h: h)
                     sunlight(w: w, h: h)
                     if fall > 0.72 {
@@ -170,13 +175,37 @@ struct SkyBackground: View {
             .resizable()
             .scaledToFill()
             .frame(width: w * 1.16, height: h * 1.16)
-            .scaleEffect(kind.indoor ? 1.02 + 0.02 * sin(t / 44.0) : 1.04 + 0.035 * sin(t / 34.0))
-            .offset(x: CGFloat(sin(t / (kind.indoor ? 60.0 : 46.0))) * w * (kind.indoor ? 0.035 : 0.018),
-                    y: CGFloat(cos(t / 58.0)) * h * (kind.indoor ? 0.012 : 0.014))
+            .scaleEffect(kind.indoor
+                         ? 1.06 + 0.045 * sin(t / 40.0)
+                         : 1.06 + 0.06 * sin(t / 34.0))
+            .offset(x: CGFloat(sin(t / (kind.indoor ? 52.0 : 46.0))) * w * (kind.indoor ? 0.075 : 0.03),
+                    y: CGFloat(cos(t / 58.0)) * h * (kind.indoor ? 0.028 : 0.022))
             .position(x: w / 2, y: h / 2)
     }
 
     /// 室内：一条很淡的横向光带缓慢扫过，像有光源在移动
+    /// 高空俯冲：宽幅云带从下往上快速掠过，制造持续下坠的速度感
+    private func verticalCloudBands(w: CGFloat, h: CGFloat, t: Double) -> some View {
+        ZStack {
+            ForEach(0..<3, id: \.self) { i in
+                let index = Double(i)
+                let speed = 26.0 + 14.0 * index
+                let bandHeight = h * (0.42 + 0.12 * index)
+                let travel = (t * speed).truncatingRemainder(dividingBy: Double(bandHeight * 1.8))
+                let y = h + bandHeight - CGFloat(travel) + CGFloat(index) * h * 0.55
+
+                Image("SkyCloud")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: w * (1.5 + 0.25 * index), height: bandHeight)
+                    .clipped()
+                    .opacity(0.30 - 0.07 * index)
+                    .blur(radius: 8 + CGFloat(index) * 4)
+                    .position(x: w / 2, y: y)
+            }
+        }
+    }
+
     private func lightSweep(w: CGFloat, h: CGFloat, t: Double) -> some View {
         let cycle = 26.0
         let progress = (t / cycle).truncatingRemainder(dividingBy: 1)
@@ -274,5 +303,126 @@ struct GlassCircleButton: View {
                 .overlay(Circle().stroke(Color.white.opacity(0.22), lineWidth: 0.8))
         }
         .buttonStyle(.plain)
+    }
+}
+
+
+// MARK: - 场景里的真实运动元素
+
+/// 室内飘尘、雪山落雪、天台雨丝、高空速度条纹。
+/// 全部由时间连续计算，不依赖随机每帧重建，因此不会闪。
+struct AmbientParticles: View {
+    let kind: SceneKind
+    let time: Double
+
+    var body: some View {
+        Canvas { context, size in
+            switch kind {
+            case .control, .study, .server:
+                dust(in: &context, size, time)
+            case .mountain:
+                snow(in: &context, size, time)
+            case .rooftop:
+                rain(in: &context, size, time)
+            case .descent, .cloudSea:
+                streaks(in: &context, size, time)
+            case .day:
+                sparseMotes(in: &context, size, time)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func dust(in context: inout GraphicsContext, _ size: CGSize, _ t: Double) {
+        var rng = SeededGenerator(seed: 0xA11CE)
+        for _ in 0..<46 {
+            let baseX = rng.next() * Double(size.width)
+            let baseY = rng.next() * Double(size.height)
+            let speed = 2.5 + rng.next() * 7.0
+            let sway = 6.0 + rng.next() * 14.0
+            let radius = 0.8 + rng.next() * 1.8
+            let alpha = 0.05 + rng.next() * 0.16
+
+            let y = (baseY - t * speed).truncatingRemainder(dividingBy: Double(size.height))
+            let wrappedY = y < 0 ? y + Double(size.height) : y
+            let x = baseX + sin(t / 9.0 + baseY) * sway
+
+            let rect = CGRect(x: x, y: wrappedY, width: radius * 2, height: radius * 2)
+            context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(alpha)))
+        }
+    }
+
+    private func snow(in context: inout GraphicsContext, _ size: CGSize, _ t: Double) {
+        var rng = SeededGenerator(seed: 0x5E0)
+        for _ in 0..<90 {
+            let baseX = rng.next() * Double(size.width)
+            let baseY = rng.next() * Double(size.height)
+            let speed = 14.0 + rng.next() * 34.0
+            let sway = 10.0 + rng.next() * 26.0
+            let radius = 1.0 + rng.next() * 2.4
+            let alpha = 0.20 + rng.next() * 0.55
+
+            let y = (baseY + t * speed).truncatingRemainder(dividingBy: Double(size.height) + 20)
+            let x = baseX + sin(t / 6.0 + baseY / 30.0) * sway
+
+            let rect = CGRect(x: x, y: y, width: radius * 2, height: radius * 2)
+            context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(alpha)))
+        }
+    }
+
+    private func rain(in context: inout GraphicsContext, _ size: CGSize, _ t: Double) {
+        var rng = SeededGenerator(seed: 0x7A11)
+        for _ in 0..<70 {
+            let baseX = rng.next() * Double(size.width)
+            let baseY = rng.next() * Double(size.height)
+            let speed = 240.0 + rng.next() * 260.0
+            let length = 12.0 + rng.next() * 26.0
+            let alpha = 0.06 + rng.next() * 0.16
+
+            let y = (baseY + t * speed).truncatingRemainder(dividingBy: Double(size.height) + 60)
+            let x = baseX + y * 0.18
+
+            var path = Path()
+            path.move(to: CGPoint(x: x, y: y))
+            path.addLine(to: CGPoint(x: x + length * 0.18, y: y + length))
+            context.stroke(path, with: .color(.white.opacity(alpha)), style: StrokeStyle(lineWidth: 0.9, lineCap: .round))
+        }
+    }
+
+    /// 俯冲时的高速白线，越到下方越密
+    private func streaks(in context: inout GraphicsContext, _ size: CGSize, _ t: Double) {
+        var rng = SeededGenerator(seed: 0xDECE)
+        for _ in 0..<48 {
+            let baseX = rng.next() * Double(size.width)
+            let baseY = rng.next() * Double(size.height)
+            let speed = 400.0 + rng.next() * 520.0
+            let length = 30.0 + rng.next() * 90.0
+            let alpha = 0.04 + rng.next() * 0.13
+
+            let y = (baseY + t * speed).truncatingRemainder(dividingBy: Double(size.height) + 120)
+            let x = baseX + sin(baseY) * 12
+
+            var path = Path()
+            path.move(to: CGPoint(x: x, y: y))
+            path.addLine(to: CGPoint(x: x, y: y + length))
+            context.stroke(path, with: .color(.white.opacity(alpha)), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
+        }
+    }
+
+    private func sparseMotes(in context: inout GraphicsContext, _ size: CGSize, _ t: Double) {
+        var rng = SeededGenerator(seed: 0xC10D)
+        for _ in 0..<26 {
+            let baseX = rng.next() * Double(size.width)
+            let baseY = rng.next() * Double(size.height)
+            let speed = 3.0 + rng.next() * 6.0
+            let radius = 0.9 + rng.next() * 1.6
+            let alpha = 0.04 + rng.next() * 0.10
+
+            let y = (baseY + t * speed).truncatingRemainder(dividingBy: Double(size.height))
+            let x = baseX + sin(t / 7.0 + baseY) * 8
+
+            let rect = CGRect(x: x, y: y, width: radius * 2, height: radius * 2)
+            context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(alpha)))
+        }
     }
 }
