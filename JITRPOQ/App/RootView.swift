@@ -63,13 +63,18 @@ struct RootView: View {
             SettingsView(onClose: { showSettings = false })
                 .environmentObject(model)
         }
-        .alert(alertTitle, isPresented: Binding(
-            get: { model.lastError != nil },
-            set: { if !$0 { model.lastError = nil } }
-        )) {
-            Button(alertOK, role: .cancel) { model.lastError = nil }
-        } message: {
-            Text(model.lastError ?? "")
+        .overlay {
+            if let message = model.lastError {
+                ErrorPrompt(
+                    title: alertTitle,
+                    message: message,
+                    okTitle: alertOK
+                ) {
+                    model.lastError = nil
+                }
+                .transition(.opacity)
+                .zIndex(20)
+            }
         }
         .overlay(alignment: .bottom) {
             if let toast = model.toast {
@@ -159,5 +164,71 @@ struct JITRPOQApp: App {
                     model.handleURL(url)
                 }
         }
+    }
+}
+
+
+/// 自绘错误提示：不再使用系统 alert。
+/// 系统 alert 在 NavigationStack 子页弹出、又被后台状态清空时，
+/// 会留下一个看不见的模态层，导致整屏点不动。
+struct ErrorPrompt: View {
+    var title: String
+    var message: String
+    var okTitle: String
+    var onDismiss: () -> Void
+
+    @State private var appeared = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.42)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { dismiss() }
+
+            VStack(spacing: 14) {
+                Text(title)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.white)
+
+                Text(message)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.white.opacity(0.82))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button(action: { dismiss() }) {
+                    Text(okTitle)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color(red: 0.42, green: 0.93, blue: 0.78))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.white.opacity(0.18), lineWidth: 0.8)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(22)
+            .frame(maxWidth: 330)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.white.opacity(0.20), lineWidth: 0.8)
+            )
+            .scaleEffect(appeared ? 1 : 0.94)
+            .opacity(appeared ? 1 : 0)
+            .padding(24)
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { appeared = true }
+        }
+    }
+
+    private func dismiss() {
+        withAnimation(.easeOut(duration: 0.18)) { appeared = false }
+        onDismiss()
     }
 }
