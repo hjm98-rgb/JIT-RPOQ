@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import UIKit
 
 enum DeviceCapability {
     /// 系统版本主版本号
