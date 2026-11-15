@@ -85,3 +85,14 @@ struct LandingEffect: ViewModifier {
             .animation(.spring(response: 0.55, dampingFraction: 0.72), value: trigger)
     }
 }
+
+/// 稳定伪随机：每帧重算也得到同一组基准值，粒子不会闪
+struct SeededGenerator {
+    private var state: UInt64
+    init(seed: UInt64) { state = seed &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407 }
+
+    mutating func next() -> Double {
+        state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+        return Double((state >> 33) & 0xFFFF) / Double(0xFFFF)
+    }
+}
