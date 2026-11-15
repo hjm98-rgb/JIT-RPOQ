@@ -52,10 +52,11 @@ struct RootView: View {
                 }
             }
             .scaleEffect(impactScale)
-            .opacity(1 - min(fall * 1.7, 1))
-            .scaleEffect(1 - min(fall, 1) * 0.06)
+            .opacity(1 - min(fall * 1.5, 1))
+            .offset(y: -fall * 150)
+            .scaleEffect(1 - min(fall, 1) * 0.05)
 
-            TravelOverlay(progress: fall, flash: flash)
+            TravelOverlay(progress: fall, flash: flash, previewImage: "SceneDescent")
         }
         .preferredColorScheme(.dark)
         .fullScreenCover(isPresented: $showSettings) {

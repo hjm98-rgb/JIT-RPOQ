@@ -154,16 +154,16 @@ struct SkyBackground: View {
                         .frame(width: w, height: h)
                     colorGrade(w: w, h: h)
                     sunlight(w: w, h: h)
-                    if fall > 0.72 {
-                        Color.white.opacity((fall - 0.72) / 0.28 * 0.55)
+                    if fall > 0.80 {
+                        Color.white.opacity((fall - 0.80) / 0.20 * 0.40)
                             .blendMode(.plusLighter)
                     }
                 }
                 .frame(width: w, height: h)
                 .clipped()
-                .scaleEffect(1 + fall * 0.65, anchor: .center)
-                .offset(y: fall * h * 1.05)
-                .blur(radius: fall * 9)
+                .scaleEffect(1 + fall * 0.55, anchor: .center)
+                .offset(y: -fall * h * 0.72)
+                .blur(radius: fall * 7)
             }
         }
         .ignoresSafeArea()

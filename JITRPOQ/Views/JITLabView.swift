@@ -19,6 +19,17 @@ struct JITLabView: View {
     @State private var fall: Double = 0
     @State private var flash: Double = 0
     @State private var travelling = false
+    @State private var pendingRoute: LabRoute?
+
+    private var previewForRoute: String? {
+        guard let route = pendingRoute else { return nil }
+        switch route {
+        case .apps: return "SceneControl"
+        case .pairing: return "SceneMountain"
+        case .scripts: return "SceneStudy"
+        case .logs: return "SceneServer"
+        }
+    }
 
     enum LabRoute: Hashable {
         case apps
@@ -34,7 +45,7 @@ struct JITLabView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ZStack {
-                SkyBackground(kind: .descent)
+                SkyBackground(kind: .descent, fall: fall)
                 Color.black.opacity(SceneKind.descent.veil).ignoresSafeArea()
 
                 ScrollView(showsIndicators: false) {
@@ -48,10 +59,11 @@ struct JITLabView: View {
                     .padding(.top, 6)
                     .padding(.bottom, 34)
                 }
-                .opacity(1 - min(fall * 1.7, 1))
+                .opacity(1 - min(fall * 1.5, 1))
+                .offset(y: -fall * 150)
                 .scaleEffect(1 - min(fall, 1) * 0.05)
 
-                TravelOverlay(progress: fall, flash: flash)
+                TravelOverlay(progress: fall, flash: flash, previewImage: previewForRoute)
             }
             .navigationDestination(for: LabRoute.self) { route in
                 switch route {
@@ -138,6 +150,7 @@ struct JITLabView: View {
     private func travel(to route: LabRoute) {
         guard !travelling, path.isEmpty else { return }
         travelling = true
+        pendingRoute = route
         fall = 0
         flash = 0
         SoundPlayer.shared.startFall()
@@ -200,6 +213,7 @@ struct JITLabView: View {
     private func travel(toGenerator: Bool) {
         guard !travelling, path.isEmpty else { return }
         travelling = true
+        pendingRoute = route
         fall = 0
         flash = 0
         SoundPlayer.shared.startFall()
