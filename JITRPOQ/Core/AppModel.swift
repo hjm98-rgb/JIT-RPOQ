@@ -506,6 +506,24 @@ final class AppModel: ObservableObject {
         toast = deviceName.map { "配对完成：\($0)" } ?? "配对文件已生成"
     }
 
+    /// 当前设备是否处在需要 JIT 脚本（iOS 26）的版本区间
+    static var deviceNeedsScript: Bool {
+        let version = UIDevice.current.systemVersion
+        let major = Int(version.split(separator: ".").first ?? "0") ?? 0
+        return major >= 26
+    }
+
+    /// 自动判定：iOS 26 起必须由脚本接管 brk 陷阱，旧系统直接附加后分离即可。
+    /// 用户手动指定脚本时以手动为准。
+    private func decideMode(script: String?) -> (needsScript: Bool, text: String?) {
+        if let script, !script.isEmpty { return (true, script) }
+        if Self.deviceNeedsScript && useIOS26Script {
+            let text = Self.bundledScript
+            return (text.isEmpty ? false : true, text.isEmpty ? nil : text)
+        }
+        return (false, nil)
+    }
+
     func enable(_ app: InstalledApp, script: String? = nil) {
         guard pairingExists else {
             lastError = JITEngineError.pairingMissing.localizedDescription
@@ -515,21 +533,25 @@ final class AppModel: ObservableObject {
         lastError = nil
         append(">>> 开启 JIT：\(app.name) [\(app.bundleID)]")
 
-        let useScript = useIOS26Script && script == nil
-        let scriptText = script ?? (useScript ? Self.bundledScript : nil)
+        let mode = decideMode(script: script)
+        append("自动判定：\(Self.deviceNeedsScript ? "iOS 26 及以上，使用脚本接管 JIT 页" : "旧版本系统，使用调试附加模式")，会话保持：开")
+        let scriptText = mode.text
         let bundleID = app.bundleID
         let name = app.name
 
         Task.detached(priority: .userInitiated) {
-            do {
-                if let scriptText, !scriptText.isEmpty {
-                    let session = try JITEngine.shared.startSession(bundleID: bundleID, script: scriptText) { line in
-                        Task { @MainActor in AppModel.shared.append(line) }
-                    }
+            let emit: (String) -> Void = { line in
+                Task { @MainActor in AppModel.shared.append(line) }
+            }
+
+            if mode.needsScript, let scriptText {
+                do {
+                    let session = try JITEngine.shared.startSession(bundleID: bundleID, script: scriptText, log: emit)
                     session.onFinish = {
                         Task { @MainActor in
                             if self.sessionBundle == bundleID {
                                 self.sessionBundle = nil
+                                BackgroundKeepAlive.shared.stop()
                                 self.append("JIT 会话已结束：\(name)")
                             }
                         }
@@ -541,18 +563,25 @@ final class AppModel: ObservableObject {
                         self.busyBundle = nil
                         self.lastBundleID = bundleID
                         self.toast = "\(name) 的 JIT 已开启"
-                        self.append("JIT 会话运行中：\(name)")
+                        self.append("JIT 会话运行中：\(name)，已开启后台保活")
+                        BackgroundKeepAlive.shared.start()
                     }
-                } else {
-                    try JITEngine.shared.enableJIT(bundleID: bundleID) { line in
-                        Task { @MainActor in AppModel.shared.append(line) }
-                    }
+                    return
+                } catch {
+                    // 脚本模式失败时回落到调试附加模式，避免直接报错给用户
                     await MainActor.run {
-                        self.busyBundle = nil
-                        self.lastBundleID = bundleID
-                        self.toast = "\(name) 的 JIT 已开启"
-                        self.append("JIT 已开启：\(name)")
+                        self.append("脚本模式未建立：\(error.localizedDescription)，改用调试附加模式", error: true)
                     }
+                }
+            }
+
+            do {
+                try JITEngine.shared.enableJIT(bundleID: bundleID, log: emit)
+                await MainActor.run {
+                    self.busyBundle = nil
+                    self.lastBundleID = bundleID
+                    self.toast = "\(name) 的 JIT 已开启"
+                    self.append("JIT 已开启：\(name)")
                 }
             } catch {
                 await MainActor.run {
@@ -587,6 +616,7 @@ final class AppModel: ObservableObject {
         activeSession?.close()
         activeSession = nil
         sessionBundle = nil
+        BackgroundKeepAlive.shared.stop()
         toast = "JIT 会话已停止"
     }
 
