@@ -1,5 +1,8 @@
 name: Build JIT RPOQ
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ main ]
@@ -56,6 +59,26 @@ jobs:
         with:
           name: JITRPOQ-unsigned-ipa
           path: out/JITRPOQ-unsigned.ipa
+
+      - name: Publish release
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          VERSION=$(sed -n 's/.*MARKETING_VERSION: "\(.*\)".*/\1/p' project.yml | head -1)
+          BUILD=$(sed -n 's/.*CURRENT_PROJECT_VERSION: "\(.*\)".*/\1/p' project.yml | head -1)
+          TAG="v${VERSION}"
+          ASSET="JITRPOQ-${VERSION}-unsigned.ipa"
+          cp out/JITRPOQ-unsigned.ipa "out/${ASSET}"
+          echo "Publishing ${TAG} (build ${BUILD})"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" "out/${ASSET}" --clobber
+          else
+            gh release create "${TAG}" "out/${ASSET}" \
+              --title "JIT RPOQ ${TAG}" \
+              --generate-notes
+          fi
 
       - name: Upload build log
         if: always()
