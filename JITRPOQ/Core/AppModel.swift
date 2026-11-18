@@ -51,6 +51,11 @@ final class AppModel: ObservableObject {
         didSet { UserDefaults.standard.set(Array(favourites), forKey: "favourites") }
     }
 
+    /// 学习到的「必须靠 iOS 26 脚本才能用 JIT」的应用，下次直接走脚本模式
+    @Published var scriptOnlyApps: Set<String> {
+        didSet { UserDefaults.standard.set(Array(scriptOnlyApps), forKey: "scriptOnlyApps") }
+    }
+
     @Published var language: String {
         didSet { UserDefaults.standard.set(language, forKey: "language") }
     }
@@ -75,6 +80,7 @@ final class AppModel: ObservableObject {
         useIOS26Script = UserDefaults.standard.object(forKey: "useIOS26Script") as? Bool ?? true
         lastBundleID = UserDefaults.standard.string(forKey: "lastBundleID")
         favourites = Set(UserDefaults.standard.stringArray(forKey: "favourites") ?? [])
+        scriptOnlyApps = Set(UserDefaults.standard.stringArray(forKey: "scriptOnlyApps") ?? [])
         language = UserDefaults.standard.string(forKey: "language") ?? AppLanguage.zh.rawValue
         skyAnimation = UserDefaults.standard.object(forKey: "skyAnimation") as? Bool ?? true
         JITEngine.shared.setLogSink { [weak self] line in
@@ -513,16 +519,21 @@ final class AppModel: ObservableObject {
         return major >= 26
     }
 
-    /// 自动判定：iOS 26 起必须由脚本接管 brk 陷阱，旧系统直接附加后分离即可。
-    /// 用户手动指定脚本时以手动为准。
-    private func decideMode(script: String?) -> (needsScript: Bool, text: String?) {
+    /// 逐应用判定：
+    /// - 手动指定脚本 / 已学习为「必须脚本」→ 脚本模式
+    /// - iOS 26 起先用调试附加模式尝试，若目标进程随即死亡，说明它需要脚本接管 brk
+    private func decideMode(app: InstalledApp, script: String?) -> (needsScript: Bool, text: String?) {
         if let script, !script.isEmpty { return (true, script) }
-        if Self.deviceNeedsScript && useIOS26Script {
+        let mustScript = scriptOnlyApps.contains(app.bundleID)
+        if mustScript || (Self.deviceNeedsScript && useIOS26Script && !canRunLegacy) {
             let text = Self.bundledScript
-            return (text.isEmpty ? false : true, text.isEmpty ? nil : text)
+            return (text.isEmpty ? (false, nil) : (true, text))
         }
         return (false, nil)
     }
+
+    /// iOS 26 上也先试附加模式，只有已知必须脚本的应用才跳过
+    private var canRunLegacy: Bool { true }
 
     func enable(_ app: InstalledApp, script: String? = nil) {
         guard pairingExists else {
@@ -533,11 +544,15 @@ final class AppModel: ObservableObject {
         lastError = nil
         append(">>> 开启 JIT：\(app.name) [\(app.bundleID)]")
 
-        let mode = decideMode(script: script)
-        append("自动判定：\(Self.deviceNeedsScript ? "iOS 26 及以上，使用脚本接管 JIT 页" : "旧版本系统，使用调试附加模式")，会话保持：开")
-        let scriptText = mode.text
         let bundleID = app.bundleID
         let name = app.name
+        let mode = decideMode(app: app, script: script)
+        if mode.needsScript {
+            append("自动判定：\(name) 需要 iOS 26 脚本接管 JIT 页，会话保持：开")
+        } else {
+            append("自动判定：\(name) 先试调试附加模式，若进程退出会自动改用脚本")
+        }
+        let scriptText = mode.text
 
         Task.detached(priority: .userInitiated) {
             let emit: (String) -> Void = { line in
@@ -576,12 +591,44 @@ final class AppModel: ObservableObject {
             }
 
             do {
-                try JITEngine.shared.enableJIT(bundleID: bundleID, log: emit)
+                let pid = try JITEngine.shared.enableJIT(bundleID: bundleID, log: emit)
+                await MainActor.run {
+                    self.lastBundleID = bundleID
+                    self.append("JIT 已开启：\(name)（PID \(pid)）")
+                }
+
+                // 附加模式跑不动的应用，进程会在几秒内退出
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                let script = Self.bundledScript
+                if !Self.processIsAlive(pid: pid), !script.isEmpty {
+                    await MainActor.run {
+                        self.scriptOnlyApps.insert(bundleID)
+                        self.append("检测到 \(name) 在附加模式下退出，判定为需要 iOS 26 脚本，自动重新开启", error: true)
+                    }
+                    let session = try JITEngine.shared.startSession(bundleID: bundleID, script: script, log: emit)
+                    session.onFinish = {
+                        Task { @MainActor in
+                            if self.sessionBundle == bundleID {
+                                self.sessionBundle = nil
+                                BackgroundKeepAlive.shared.stop()
+                                self.append("JIT 会话已结束：\(name)")
+                            }
+                        }
+                    }
+                    await MainActor.run {
+                        self.activeSession?.close()
+                        self.activeSession = session
+                        self.sessionBundle = bundleID
+                        self.busyBundle = nil
+                        self.toast = "\(name) 的 JIT 已开启（脚本模式）"
+                        BackgroundKeepAlive.shared.start()
+                    }
+                    return
+                }
+
                 await MainActor.run {
                     self.busyBundle = nil
-                    self.lastBundleID = bundleID
                     self.toast = "\(name) 的 JIT 已开启"
-                    self.append("JIT 已开启：\(name)")
                 }
             } catch {
                 await MainActor.run {
@@ -590,6 +637,15 @@ final class AppModel: ObservableObject {
                 }
             }
         }
+    }
+
+    nonisolated static func processIsAlive(pid: Int32) -> Bool {
+        guard pid > 0 else { return false }
+        errno = 0
+        let result = kill(pid, 0)
+        if result == 0 { return true }
+        // 权限不足说明进程存在但不可发信号，按存活处理
+        return errno == EPERM
     }
 
     func launchOnly(_ app: InstalledApp) {
