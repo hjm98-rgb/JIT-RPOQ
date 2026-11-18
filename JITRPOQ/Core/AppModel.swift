@@ -553,6 +553,7 @@ final class AppModel: ObservableObject {
             append("自动判定：\(name) 先试调试附加模式，若进程退出会自动改用脚本")
         }
         let scriptText = mode.text
+        let bundledScript = Self.bundledScript
 
         Task.detached(priority: .userInitiated) {
             let emit: (String) -> Void = { line in
@@ -599,7 +600,7 @@ final class AppModel: ObservableObject {
 
                 // 附加模式跑不动的应用，进程会在几秒内退出
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
-                let script = Self.bundledScript
+                let script = bundledScript
                 if !Self.processIsAlive(pid: pid), !script.isEmpty {
                     await MainActor.run {
                         self.scriptOnlyApps.insert(bundleID)
